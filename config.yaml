@@ -1,0 +1,121 @@
+DEFAULT: 
+  camera_config: &default_camera_settings # See camera_variables.md documentation
+      # Image format settings
+      Width: 3536
+      Height: 3536
+      OffsetX: 6 
+      OffsetY: 8
+      BslColorSpace: "Off"
+      PixelFormat: "BGR8"
+      LUTEnable: false
+      # Image Capture settings
+      ExposureTime: 15000.0
+      Gain: 1.0
+      gamma: 1.0
+      # Video settings
+      AcquisitionFrameRateEnable: False
+      AcquisitionFrameRate: 30
+      # Auto settings
+      AutoTargetBrightness: 0.5   # Mellem 0.0 og 1.0
+      AutoFunction: "MinimizeGain" # "MinimizeGain", eller "MinimizeExposureTime"
+      ExposureAuto: "Off"   # 'Off', 'Once', 'Continuous'
+      AutoExposureTimeLowerLimit: 1.0
+      AutoExposureTimeUpperLimit: 100000.0
+      GainAuto: "Off"       # Off,' 'Once', 'Continuous'
+      AutoGainLowerLimit: 0
+      AutoGainUpperLimit: 24
+      BalanceWhiteAuto: "Once"   # Off,' 'Once', 'Continuous'
+  light_config: &default_light_settings
+    light.1: 128 # Strength in 8bit values (0-255)
+    light.2: 128 # Strength in 8bit values (0-255)
+    light.3: 128 # Strength in 8bit values (0-255
+
+# named hardware cofigurations for individiual rigs
+setups:
+  any:
+    camera:
+      ip: null
+      settings: *default_camera_settings
+    microcontroller:
+      ip: 10.42.0.146
+      port: 80
+  rig1:
+    camera:
+      ip: 192.168.10.11
+      serial: 123123123
+      settings: *default_camera_settings
+    microcontroller:
+      ip: 127.0.0.101
+      port: 5000
+    light:
+      settings: *default_light_settings
+  rig2:
+    camera:
+      ip: 192.168.10.12
+      serial: 123124673
+      settings: *default_camera_settings
+    microcontroller:
+      ip: 192.168.10.102
+      port: 5000
+    light:
+      settings: *default_light_settings
+  rig3:
+    camera:
+      ip: 192.168.10.13
+      serial: 122487313
+      settings: *default_camera_settings
+    microcontroller:
+      ip: 192.168.10.103
+      port: 5000
+    light:
+      settings: *default_light_settings
+
+# Named camera configuration presets
+camera_configs:
+  prototypeLongExp:
+    <<: *default_camera_settings
+    ExposureTime: 25000.0
+    ExposureAuto: "Off"
+    auto_gain: "Off"
+
+  prototypeShortExp:
+    <<: *default_camera_settings
+    ExposureTime: 12500.0
+    gain: 1.0
+    ExposureAuto: "Off"
+    auto_gain: "Off"
+
+  action:
+    <<: *default_camera_settings
+    ExposureTime: 3500.0
+    ExposureAuto: "Off"
+    auto_gain: "Off"
+    auto_gain_upper_limit: 18
+
+  balance:
+    <<: *default_camera_settings
+    ExposureTime: 15000.0
+    gain: 3.5
+    ExposureAuto: "Off"
+    auto_gain: "Off"
+    AcquisitionFrameRate: 24
+
+  longExposure:
+    <<: *default_camera_settings
+    ExposureTime: 75000.0
+    gain: 1.0
+    AutoTargetBrightness: 0.65
+    ExposureAuto: "Off"
+    auto_gain: "Off"
+    AcquisitionFrameRate: 10
+
+# Named lighting configuration presets
+light_configs:
+  bright:
+    <<: *default_light_settings
+    light.1: 255
+    light.2: 255
+  dim: 
+    <<: *default_light_settings
+    light.1: 90
+    light.2: 90

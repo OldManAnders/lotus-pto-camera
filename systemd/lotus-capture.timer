@@ -1,0 +1,15 @@
+[Unit]
+Description=Run device-trigger every 10 minutes
+
+[Timer]
+# Run every 10 minutes every day
+OnCalendar=*:0/10
+
+# Ensures the job runs immediately if a reboot caused a missed window
+Persistent=true
+
+Unit=lotus-capture.service
+
+[Install]
+# Enable on boot
+WantedBy=timers.target                           

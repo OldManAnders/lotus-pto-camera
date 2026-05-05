@@ -1,0 +1,17 @@
+[Unit]
+Description=Trigger PoE Camera and Microcontroller Commands
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/aau/LOTUS-PTO_studentwork
+ExecStart=/usr/bin/bash /home/aau/LOTUS-PTO_studentwork/systemd/lotus-capture.sh
+User=root
+
+# Retry once if the entire script fails
+Restart=on-failure
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

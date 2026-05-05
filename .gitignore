@@ -1,0 +1,7 @@
+venv/
+.venv
+__pycache__/
+captured_data/
+camera_system.log
+.vscode/
+.pio/
