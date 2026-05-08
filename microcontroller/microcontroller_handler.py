@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 
 class MicrocontrollerHandler:
-    def __init__(self, ip, port=80, timeout=5, reconnect_interval=5, heartbeat_interval=10, name="NA", verbose=False) -> None:
+    def __init__(self, ip, port=80, timeout=5, reconnect_interval=5, heartbeat_interval=10, name="NA", verbose=False, log_level=logging.INFO) -> None:
         self.name = name
         self.ip = ip
         self.port = port
@@ -21,10 +21,10 @@ class MicrocontrollerHandler:
 
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(
-            level=logging.INFO,
-            format=",%(levelname)s,%(name)s,%(message)s" #Leading comma as Linux Timestamps the stdout
-        )
-
+            level=log_level,
+            format="%(asctime)s,%(levelname)s,%(name)s,%(message)s",
+            datefmt='%Y-%m-%d%H:%M:%S'
+            )
     # -------------------------------------------------------------------------
     # Helpers (PRIVATE)
     # -------------------------------------------------------------------------

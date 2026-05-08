@@ -3,6 +3,7 @@
 #include "config.h"
 #include "http_server.h"
 #include "resources/pwm_controller.h"
+#include "resources/bme280_sensor.h"
 
 #if defined(TRANSPORT_ETHERNET)
   #include <Ethernet.h>
@@ -10,9 +11,11 @@
   #include <WiFi.h>
 #endif
 
-static PwmController* pwm         = nullptr;
-static PwmProvider*   pwmProvider = nullptr;
-static HttpServer*    httpServer  = nullptr;
+static PwmController*  pwm            = nullptr;
+static PwmProvider*    pwmProvider    = nullptr;
+static Bme280Sensor*   bme280Sensor   = nullptr;
+static Bme280Provider* bme280Provider = nullptr;
+static HttpServer*     httpServer     = nullptr;
 
 static unsigned long _lastReconnectAttempt = 0;
 static bool          _serverStarted        = false;
@@ -128,9 +131,23 @@ void setup() {
   pwm->begin();
   pwmProvider = new PwmProvider(*pwm);
 
+  Serial.println("Initializing BME280 sensor");
+  bme280Sensor = new Bme280Sensor();
+  if (bme280Sensor->begin()) {
+    bme280Provider = new Bme280Provider(*bme280Sensor);
+    Serial.println("BME280 initialized successfully");
+  } else {
+    Serial.println("BME280 initialization failed — check wiring and I2C address");
+  }
+
   Serial.println("Starting http server");
   httpServer  = new HttpServer();
-  httpServer->addProvider(pwmProvider);
+  if (pwmProvider != nullptr) {
+    httpServer->addProvider(pwmProvider);
+  }
+  if (bme280Provider != nullptr) {
+    httpServer->addProvider(bme280Provider);
+  }
   httpServer->begin();
 
   _serverStarted = true;
@@ -141,6 +158,11 @@ void loop() {
   #if defined(TRANSPORT_ETHERNET)
     Ethernet.maintain();  // renew DHCP lease when needed
   #endif
+
+  // Refresh sensor readings
+  if (bme280Sensor != nullptr && bme280Sensor->isReady()) {
+    bme280Sensor->read();
+  }
 
   maintainNetwork();
 

@@ -29,6 +29,14 @@ namespace Config {
   static constexpr uint8_t ETH_GW[4]   = { 192, 168,   1,   1 };
   static constexpr uint8_t ETH_MASK[4] = { 255, 255, 255,   0 };
 
+  // ------------------- I2C Resources -------------------------//
+  // I2C Pins
+  constexpr uint8_t I2C_SDA_PIN = 6; // (IO06) GPIO pin used for I2C SDA  
+  constexpr uint8_t I2C_SCL_PIN = 7; // (IO07) GPIO pin used for I2C SCL
+
+  // BME280 climate sensor
+  constexpr uint8_t BME280_I2C_ADDRESS = 0x76; // I2C address of the BME280 sensor
+  
   //-------------------------PWM Resources-------------------------//
   // LED PWM setup
   constexpr uint32_t LED_PWM_FREQUENCY = 5000; // Hz
