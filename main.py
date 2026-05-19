@@ -47,7 +47,7 @@ parser.add_argument('--output_path', type=str, default="./captured_data/")
 parser.add_argument('--disable_camera', action="store_true", default=False, help="Disable camera capture")
 parser.add_argument('--disable_microcontroller', action="store_true", default=False, help="Disable microcontroller calls")
 parser.add_argument('--disable_telemetry', action="store_true", default=False, help="Disable telemetry calls to the microcontroller and camera (e.g. temperature readings)")
-parser.add_argument('--log_level', default="telemetry", choices=__log_level_map__.keys(), help="Level of verbosity of the logger")
+parser.add_argument('--log_level', default="debug", choices=__log_level_map__.keys(), help="Level of verbosity of the logger")
 args = parser.parse_args()
 
 #Setup logger
@@ -99,66 +99,51 @@ except:
     logger.error("Aborting...")
     sys.exit()
 
+if args.c is None:
+    args.c = [["default", "default"]]
+    logger.warning(f"No configs provided. A single image will be captured with default settings")
+
 # Pre capture telemetry
-if not args.disable_telemetry:
-    if camera_handler:
-        logger.telemetry(camera_handler.camera.DeviceTemperature.Value, name=f"{args.rig},Camera_Temperature")
+if micro_controller:
+    logger.telemetry(micro_controller.get, name=f"{args.rig},Camera_Temperature")
+if camera_handler:
+    logger.telemetry(camera_handler.camera.DeviceTemperature.Value, name=f"{args.rig},Camera_Temperature")
 
-#process all capture configs
-if args.c is not None:
-    try:
-        logger.debug(f"{len(args.c)} configs provided")
-        #Wipe the lense
-        if micro_controller:
-            logger.debug(f"Sending command to wipe lense")
-            micro_controller.send_command("wipe")
+try:
+    # Log the amount of configs 
+    logger.debug(f"{len(args.c)} configs")
+    
+    #Wipe the lense
+    if micro_controller:
+        logger.debug(f"Sending command to wipe lense")
+        micro_controller.send_command("wipe")
 
-        # Iterate over provided camera and lighting configurations
-        for c in args.c:
-            cam_config_name = c[0]
-            light_config_name = c[1]
-            logger.debug(f"Capturing an image with [{cam_config_name}] [{light_config_name}]")
-            logger.telemetry(camera_handler.camera.DeviceTemperature.Value, name=f"{args.rig},Camera_Temperature")
-            if micro_controller:
-                #Initiate light
-                micro_controller.set_values(__CONFIG__["light_configs"][light_config_name])
-            
-            if camera_handler:
-                #Set camera settings
-                camera_handler.load_config(__CONFIG__["camera_configs"][cam_config_name])
-                #Capture image
-                camera_handler.snap_pic(cam_config_name=cam_config_name, light_config_name=light_config_name)
+    # Iterate over provided camera and lighting configurations
+    for c in args.c:
+        cam_config_name = c[0]
+        light_config_name = c[1]
+        logger.debug(f"Capturing an image with [{cam_config_name}] [{light_config_name}]")
         
-        #Close out
-        if micro_controller:
-            #Turn off lights
-            micro_controller.send_command("lightOff")
 
-        if camera_handler:
-            camera_handler.close()
-
-    except:
-        #Format stacktraces into a single line with | markers to indicate linebreaks
-        err = traceback.format_exc().replace("\n", "|")
-        logger.error(err)
-else: 
-    try:
-        logger.warning(f"No configs provided. A single image will be captured with default settings")
-        
         if micro_controller:
             #Initiate light
-            micro_controller.set_values(rig["light"])
-
+            micro_controller.set_values(__CONFIG__["light_configs"][light_config_name])
+        
         if camera_handler:
             #Set camera settings
-            camera_handler.load_config(rig["camera"]["settings"])
-            camera_handler.snap_pic(cam_config_name="default", light_config_name="default")
-            camera_handler.close()
+            camera_handler.load_config(__CONFIG__["camera_configs"][cam_config_name])
+            #Capture image
+            camera_handler.snap_pic(cam_config_name=cam_config_name, light_config_name=light_config_name)
+    
+    #Close out
+    if micro_controller:
+        #Turn off lights
+        micro_controller.send_command("lightOff")
 
-        if micro_controller:
-            micro_controller.send_command("lightOff")
-        
-    except Exception:
-        #Format stacktraces into a single line with | markers to indicate linebreaks
-        err = traceback.format_exc().replace("\n", "|")
-        logger.error(err)
+    if camera_handler:
+        camera_handler.close()
+
+except:
+    #Format stacktraces into a single line with | markers to indicate linebreaks
+    err = traceback.format_exc().replace("\n", "|")
+    logger.error(err)

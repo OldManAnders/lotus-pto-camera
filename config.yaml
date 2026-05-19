@@ -39,6 +39,7 @@ setups:
     microcontroller:
       ip: 10.42.0.146
       port: 80
+  
   rig1:
     camera:
       ip: 192.168.10.11
@@ -49,6 +50,7 @@ setups:
       port: 5000
     light:
       settings: *default_light_settings
+  
   rig2:
     camera:
       ip: 192.168.10.12
@@ -59,6 +61,7 @@ setups:
       port: 5000
     light:
       settings: *default_light_settings
+  
   rig3:
     camera:
       ip: 192.168.10.13
@@ -72,6 +75,9 @@ setups:
 
 # Named camera configuration presets
 camera_configs:
+  default:
+    <<: *default_camera_settings
+
   prototypeLongExp:
     <<: *default_camera_settings
     ExposureTime: 25000.0
@@ -111,10 +117,14 @@ camera_configs:
 
 # Named lighting configuration presets
 light_configs:
+  default:
+    <<: *default_light_settings
+
   bright:
     <<: *default_light_settings
     light.1: 255
     light.2: 255
+
   dim: 
     <<: *default_light_settings
     light.1: 90
