@@ -1,5 +1,5 @@
 from pypylon import pylon
-import cv2, time, threading, os, logging, yaml
+import cv2, time, threading, os, yaml, logging
 
 __PIXEL_FORMAT_MAP__ = {
     "mono8": "Mono8",
@@ -31,24 +31,15 @@ __PIXEL_FORMAT_MAP__ = {
     "bayer_bg12p": "BayerBG12p",
 }
 
-class CameraControl:
-    def __init__(self, config=None, ip=None, interval=None, logger=None, name="noname", output_folder="./captured_images", log_level=logging.INFO) -> None:
-        #Instansiate logger or accept passed logger
-        if logger:
-            self.logger = logger
-        else:
-            self.logger = logging.getLogger(__name__)
-
+class CameraHandler:
+    def __init__(self, config=None, ip=None, interval=None, name="NA, NA", output_folder="./captured_images") -> None:
         # store output folder path
         self.output_folder = os.path.join(output_folder, "images/")
         os.makedirs(self.output_folder, exist_ok=True)
 
         #Mark initiation
-        self.logger.debug(f"Initialized Camera Controller {name}")
-        logging.basicConfig(
-            level=log_level,
-            format=",[%(levelname)s],[%(name)s],%(message)s" #Leading comma as Linux Timestamps the stdout
-        )
+        self.logger = logging.getLogger(name)
+        self.logger.debug(f"Initialized Camera Handler '{name}'")
 
         # Get camera
         if ip is None: #If not IP specified get first available device
@@ -324,7 +315,7 @@ class CameraControl:
         return thread
 
 if __name__ == "__main__":
-    camera_control = CameraControl("./config.yaml")
+    camera_handler = CameraHandler("./config.yaml")
 
     try:
         while True:
@@ -332,15 +323,15 @@ if __name__ == "__main__":
                 "Enter 'p' to take a picture, 's' to start live view, 'u' to update settings, or 'q' to quit: "
             )
             if user_input == "p":
-                camera_control.manual_capture()
+                camera_handler.manual_capture()
             elif user_input == "s":
-                camera_control.stream()
+                camera_handler.stream()
             elif user_input == "u":
-                camera_control.load_config("./config.yaml")
+                camera_handler.load_config("./config.yaml")
             elif user_input == "q":
                 break
             else:
                 print("Invalid input. Please try again.")
 
     finally:
-        camera_control.close()
+        camera_handler.close()

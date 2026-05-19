@@ -18,7 +18,8 @@ log_system() {
 }
 
 # Apply logging to all stdouts (Bash and Python)
-exec > >(awk '{ print strftime("%Y-%m-%d %H:%M:%S"),$0; fflush(); }' >> "$LOGFILE") 2>&1
+exec >> "$LOGFILE" 2>&1 #Buffered logging to file
+#exec > >(awk '{ print $0; fflush(); }' >> "$LOGFILE") 2>&1 # unbuffered logging (for real-time logging and monitoring)
 
 # Start logging service
 log_system "Routine capture service started"
@@ -30,7 +31,7 @@ PYTHON_BIN="./venv/bin/python3"
 # Keep retrying until
 until [ $count -ge $MAX_RETRIES ]; do
     # Image acquisition begins
-    $PYTHON_BIN capture.py usb_cam --output_path $OUTPUTDIR -c prototypeLongExp bright -c prototypeLongExp dim
+    $PYTHON_BIN main.py usb_cam --output_path $OUTPUTDIR -c prototypeLongExp bright -c prototypeLongExp dim
     break
 
     count=$((count+1))
