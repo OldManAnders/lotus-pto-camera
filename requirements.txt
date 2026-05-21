@@ -2,3 +2,4 @@ numpy==2.4.1
 opencv-python==4.13.0.90
 pypylon==4.2.0
 PyYAML==6.0.3
+requests==2.31.0
