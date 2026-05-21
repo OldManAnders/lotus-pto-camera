@@ -35,6 +35,24 @@ public:
       doc["ssid"] = WiFi.SSID();
       doc["ip"]   = WiFi.localIP().toString();
       doc["rssi"] = WiFi.RSSI();
+      _appendSensorReadings(doc);
+      _send(200, doc);
+    });
+
+    // GET /favicon.ico
+    _server.on("/favicon.ico", HTTP_GET, [this]() {
+      _server.send(204, "image/x-icon", "");
+    });
+
+    // GET /sensor
+    _server.on("/sensor", HTTP_GET, [this]() {
+      JsonDocument doc;
+      if (!_appendSensorReadings(doc)) {
+        doc["success"] = false;
+        doc["error"] = "sensor unavailable";
+        _send(503, doc);
+        return;
+      }
       _send(200, doc);
     });
 
@@ -45,7 +63,7 @@ public:
       _send(200, doc);
     });
 
-    // POST /get  body: ["led0", "led1"]
+    // POST /get  body: ["light.0", "light.1"]
     _server.on("/get", HTTP_POST, [this]() {
       JsonDocument req;
       if (deserializeJson(req, _server.arg("plain"))) {
@@ -150,24 +168,23 @@ private:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>LOTUS PWM CONTROLLER</title>
+<title>LOTUS CAMERA SENSOR CONTROLLER</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600&display=swap');
 
   :root {
-    --bg:       #0a0c0e;
-    --surface:  #111416;
-    --border:   #1e2327;
-    --accent:   #00e5ff;
-    --accent2:  #ff6b35;
-    --warn:     #ffcc00;
-    --text:     #c8d0d8;
-    --muted:    #4a5260;
-    --on:       #00e5ff;
-    --off:      #1e2327;
-    --radius:   2px;
+    --bg:       #0c1210;
+    --surface:  #121a14;
+    --border:   #1c2e20;
+    --accent:   #52c97a;
+    --accent2:  #ff8c69;
+    --warn:     #f0c040;
+    --text:     #d0e8d8;
+    --muted:    #486050;
+    --on:       #52c97a;
+    --off:      #1c2e20;
+    --radius:   6px;
   }
-
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
@@ -451,7 +468,7 @@ private:
 <body>
 
 <header>
-  <div class="logo">LOTUS <span>//</span> PWM CONTROLLER</div>
+  <div class="logo">LOTUS <span>//</span> SENSOR CONTROLLER</div>
   <div class="status-bar">
     <div>
       <span class="status-dot" id="status-dot"></span>
@@ -507,6 +524,20 @@ private:
       <input type="range" min="0" max="180" value="0" id="wiper0"
              oninput="onSlider('wiper0', this.value)">
       <div class="ch-value" id="val-wiper0">0</div>
+    </div>
+  </div>
+
+  <!-- BMP280 sensor panel -->
+  <div class="panel">
+    <div class="panel-title">BMP280 Sensor</div>
+
+    <div class="channel">
+      <div class="ch-label">Temperature<span>°C</span></div>
+      <div class="ch-value" id="sensor-temperature">—</div>
+    </div>
+    <div class="channel">
+      <div class="ch-label">Pressure<span>hPa</span></div>
+      <div class="ch-value" id="sensor-pressure">—</div>
     </div>
   </div>
 
@@ -602,6 +633,12 @@ private:
       document.getElementById('rssi-label').textContent = data.rssi + ' dBm';
       document.getElementById('last-update').textContent =
         'LAST UPDATE ' + new Date().toLocaleTimeString();
+
+      const sensor = data.sensor || {};
+      document.getElementById('sensor-temperature').textContent =
+        sensor.temperature !== undefined ? sensor.temperature.toFixed(1) + '°C' : '—';
+      document.getElementById('sensor-pressure').textContent =
+        sensor.pressure !== undefined ? sensor.pressure.toFixed(1) + ' hPa' : '—';
     } catch {
       document.getElementById('status-dot').className   = 'status-dot offline';
       document.getElementById('status-label').textContent = 'OFFLINE';
@@ -625,6 +662,20 @@ private:
 </body>
 </html>
 )~~~";
+
+  bool _appendSensorReadings(JsonDocument& doc) {
+    for (ResourceProvider* p : _providers) {
+      JsonDocument sensorReply;
+      if (!p->handleGet("sensor.all", sensorReply)) continue;
+      JsonObject sensor = doc.createNestedObject("sensor");
+      sensor["temperature"] = sensorReply["temperature"]["value"] | 0.0f;
+      sensor["humidity"]    = sensorReply["humidity"]["value"] | 0.0f;
+      sensor["pressure"]    = sensorReply["pressure"]["value"] | 0.0f;
+      return true;
+    }
+    return false;
+
+  }
 
   void _send(int code, JsonDocument& doc) {
     String out;

@@ -4,6 +4,9 @@
 #define TRANSPORT_WIFI // → use onboard WiFi (default)
 // #define TRANSPORT_ETHERNET // → use wired Ethernet (W5x00 / ENC28J60 via SPI)
 
+#define USE_BMP280_SENSOR // → include BMP280 temperature/pressure sensor support
+
+
 #include <Arduino.h>
 namespace Config {
   //-------------------OTA configuration-----------------------//
@@ -31,12 +34,13 @@ namespace Config {
 
   // ------------------- I2C Resources -------------------------//
   // I2C Pins
-  constexpr uint8_t I2C_SDA_PIN = 6; // (IO06) GPIO pin used for I2C SDA  
-  constexpr uint8_t I2C_SCL_PIN = 7; // (IO07) GPIO pin used for I2C SCL
+  constexpr uint8_t I2C_SDA_PIN = 8; // (IO06) GPIO pin used for I2C SDA  
+  constexpr uint8_t I2C_SCL_PIN = 9; // (IO07) GPIO pin used for I2C SCL
 
-  // BME280 climate sensor
-  constexpr uint8_t BME280_I2C_ADDRESS = 0x76; // I2C address of the BME280 sensor
-  
+  // BMP280 climate sensor (temperature + pressure only)
+  constexpr uint8_t BMP280_I2C_ADDRESS = 0x76; // I2C address of the BMP280 sensor
+  constexpr uint8_t BME280_I2C_ADDRESS = BMP280_I2C_ADDRESS; // backwards compatibility for legacy BME280 code
+
   //-------------------------PWM Resources-------------------------//
   // LED PWM setup
   constexpr uint32_t LED_PWM_FREQUENCY = 5000; // Hz
