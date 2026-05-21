@@ -39,12 +39,12 @@ class MicrocontrollerHandler:
             self._last_ping_ok = False
             return {"success": False, "error": str(e)}
 
-    def _post(self, path: str, payload: dict) -> Optional[dict]:
+    def _post(self, path: str, payload: dict, timeout=None) -> Optional[dict]:
         try:
             res = requests.post(
                 self._base_url + path,
                 json=payload,
-                timeout=self.timeout
+                timeout=self.timeout if timeout is None else timeout
             )
             res.raise_for_status()
             return res.json()
@@ -145,7 +145,11 @@ class MicrocontrollerHandler:
                 self.logger.error("send_command error: setAll requires params {'value': <0-255>}" )
                 return {"success": False, "error": "missing params: value"}
 
-        reply = self._post("/cmd", body)
+        if cmd == "wipe": # Allow for the wiper to do its full sweep
+            reply = self._post("/cmd", body, timeout=15)
+        else:
+            reply = self._post("/cmd", body)
+
         if reply and not reply.get("success"):
             self.logger.error(f"send_command error: {reply.get('error')}")
         return reply

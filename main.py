@@ -105,7 +105,17 @@ if args.c is None:
 
 # Pre capture telemetry
 if micro_controller:
-    logger.telemetry(micro_controller.get, name=f"{args.rig},Camera_Temperature")
+    #Temperature sensor
+    resp = micro_controller.get_values(["sensor.temperature"])
+    if resp["success"]:
+        for key, val in resp["data"].items():
+            logger.telemetry(val, name=f"{args.rig},{key}")
+    
+    #Pressure sensor
+    resp = micro_controller.get_values(["sensor.pressure"])
+    if resp["success"]:
+        for key, val in resp["data"].items():
+            logger.telemetry(val, name=f"{args.rig},{key}")
 if camera_handler:
     logger.telemetry(camera_handler.camera.DeviceTemperature.Value, name=f"{args.rig},Camera_Temperature")
 
@@ -122,8 +132,7 @@ try:
     for c in args.c:
         cam_config_name = c[0]
         light_config_name = c[1]
-        logger.debug(f"Capturing an image with [{cam_config_name}] [{light_config_name}]")
-        
+        logger.info(f"Capturing an image with [{cam_config_name}] [{light_config_name}]")
 
         if micro_controller:
             #Initiate light
@@ -135,6 +144,23 @@ try:
             #Capture image
             camera_handler.snap_pic(cam_config_name=cam_config_name, light_config_name=light_config_name)
     
+    # Post capture telemetry
+    if micro_controller:
+        #Temperature sensor
+        resp = micro_controller.get_values(["sensor.temperature"])
+        if resp["success"]:
+            for key, val in resp["data"].items():
+                logger.telemetry(val, name=f"{args.rig},{key}")
+        
+        #Pressure sensor
+        resp = micro_controller.get_values(["sensor.pressure"])
+        if resp["success"]:
+            for key, val in resp["data"].items():
+                logger.telemetry(val, name=f"{args.rig},{key}")
+
+    if camera_handler:
+        logger.telemetry(camera_handler.camera.DeviceTemperature.Value, name=f"{args.rig},Camera_Temperature")
+
     #Close out
     if micro_controller:
         #Turn off lights
