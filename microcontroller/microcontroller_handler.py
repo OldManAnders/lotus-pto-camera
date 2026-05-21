@@ -54,36 +54,6 @@ class MicrocontrollerHandler:
             self._last_ping_ok = False
             return {"success": False, "error": str(e)}
 
-    def _set_key_for(self, key: str) -> str:
-        """Return the key name expected by device for POST /set.
-        Accepts either 'light.1' / 'light.2'
-        and converts to the device's set-key format (ledN or wiper0).
-        """
-        if key.startswith("light."):
-            try:
-                idx = int(key.split('.', 1)[1]) - 1
-                return f"light{idx}"
-            except Exception:
-                return key
-        if key == "wiper":
-            return "wiper"
-        return key
-
-    def _get_key_for(self, key: str) -> str:
-        """Return the key name expected by device for POST /get.
-        'light.1', 'light.2', 'light.3' or 'wiper' and returns
-        the get-key format (light.N or wiper).
-        """
-        if key.startswith("light."):
-            try:
-                idx = int(key.split('.', 1)[1]) - 1
-                return f"light{idx}"
-            except Exception:
-                return key
-        if key == "wiper":
-            return "wiper"
-        return key
-
     # -------------------------------------------------------------------------
     # Heartbeat functionality (PRIVATE)
     # -------------------------------------------------------------------------
@@ -127,7 +97,7 @@ class MicrocontrollerHandler:
         # No persistent connection required; try sending regardless
         payload = {}
         for k, v in keyvals.items():
-            payload[self._set_key_for(k)] = v
+            payload[k] = v
 
         reply = self._post("/set", payload)
         if reply and not reply.get("success"):
@@ -143,9 +113,8 @@ class MicrocontrollerHandler:
 
         # Map requested keys to device get-keys
         requested = list(keys)
-        device_keys = [self._get_key_for(k) for k in requested]
 
-        reply = self._post("/get", device_keys)
+        reply = self._post("/get", requested)
         if not reply:
             return None
         if not reply.get("success"):
@@ -155,7 +124,7 @@ class MicrocontrollerHandler:
         data = reply.get("data", {})
         # Map device-returned keys back to the caller's requested keys
         mapped = {}
-        for orig, dk in zip(requested, device_keys):
+        for orig, dk in zip(requested, requested):
             if dk in data:
                 mapped[orig] = data[dk]
             else:
@@ -188,17 +157,17 @@ class MicrocontrollerHandler:
 # CLI
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    ip = input("SBC IP address: ").strip()
-    sbc = SBC(ip, port=80, verbose=True)
+    ip = input("mc IP address: ").strip()
+    mc =MicrocontrollerHandler(ip, port=80, verbose=True)
     try:
         print("Starting heartbeat...")
-        sbc.start_heartbeat()
+        mc.start_heartbeat()
 
         print("Checking connection")
         dots=0
-        while not sbc.is_alive():
+        while not mc.is_alive():
             dots = (dots + 1) % 6
-            print(f"SBC unreachable, waiting{'.' * dots}\r", end="")
+            print(f"mc unreachable, waiting{'.' * dots}\r", end="")
             time.sleep(1)
 
         print("Ready. Commands:")
@@ -229,9 +198,9 @@ if __name__ == "__main__":
                     val = int(val)
                 except ValueError:
                     pass
-                print(sbc.set_values({key: val}))
+                print(mc.set_values({key: val}))
             elif action == "get" and len(parts) == 2:
-                print(sbc.get_values([parts[1]]))
+                print(mc.get_values([parts[1]]))
             elif action == "cmd" and len(parts) >= 2:
                 cmd_name = parts[1]
                 # support: cmd setAll 200
@@ -241,15 +210,15 @@ if __name__ == "__main__":
                     except ValueError:
                         print("Invalid value for setAll; must be integer 0-255")
                         continue
-                    print(sbc.send_command(cmd_name, {"value": v}))
+                    print(mc.send_command(cmd_name, {"value": v}))
                 else:
-                    print(sbc.send_command(cmd_name))
+                    print(mc.send_command(cmd_name))
             elif action == "status":
-                print(sbc.status())
+                print(mc.status())
             else:
                 print("Unknown command or wrong number of arguments")
 
     except KeyboardInterrupt:
         print("\nInterrupted")
     finally:
-        sbc.stop_heartbeat()
+        mc.stop_heartbeat()
