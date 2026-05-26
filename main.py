@@ -46,8 +46,7 @@ parser.add_argument('--list_configs', action='store_true', help="List all camera
 parser.add_argument('--output_path', type=str, default="./captured_data/")
 parser.add_argument('--disable_camera', action="store_true", default=False, help="Disable camera capture")
 parser.add_argument('--disable_microcontroller', action="store_true", default=False, help="Disable microcontroller calls")
-parser.add_argument('--disable_telemetry', action="store_true", default=False, help="Disable telemetry calls to the microcontroller and camera (e.g. temperature readings)")
-parser.add_argument('--log_level', default="debug", choices=__log_level_map__.keys(), help="Level of verbosity of the logger")
+parser.add_argument('--log_level', default="telemetry", choices=__log_level_map__.keys(), help="Level of verbosity of the logger")
 args = parser.parse_args()
 
 #Setup logger
@@ -91,7 +90,7 @@ try:
         micro_controller = None   
         logger.warning(f"'--disable_microcontroller' set ({args.disable_microcontroller}): Microcontroller communication is disabled")
     else:
-        micro_controller = MicrocontrollerHandler(ip=rig["microcontroller"]["ip"], port=rig["microcontroller"]["port"], name=f"{args.rig}, Microcontroller")
+        micro_controller = MicrocontrollerHandler(ip=rig["microcontroller"]["ip"], port=rig["microcontroller"]["port"], name=f"{args.rig},Microcontroller")
 except:
     #Format stacktraces into a single line with | markers to indicate linebreaks
     err = traceback.format_exc().replace("\n", "|")

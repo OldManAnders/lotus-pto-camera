@@ -43,33 +43,33 @@ setups:
   rig1:
     camera:
       ip: 192.168.10.11
-      serial: 123123123
+      serial: N/A
       settings: *default_camera_settings
     microcontroller:
-      ip: 127.0.0.101
-      port: 5000
+      ip: 192,168,10.101
+      port: 80
     light:
       settings: *default_light_settings
   
   rig2:
     camera:
       ip: 192.168.10.12
-      serial: 123124673
+      serial: N/A
       settings: *default_camera_settings
     microcontroller:
       ip: 192.168.10.102
-      port: 5000
+      port: 80
     light:
       settings: *default_light_settings
   
   rig3:
     camera:
       ip: 192.168.10.13
-      serial: 122487313
+      serial: N/A
       settings: *default_camera_settings
     microcontroller:
       ip: 192.168.10.103
-      port: 5000
+      port: 80
     light:
       settings: *default_light_settings
 

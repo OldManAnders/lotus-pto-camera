@@ -20,7 +20,7 @@ class MicrocontrollerHandler:
         self._heartbeat_thread = None
 
         self.logger = logging.getLogger(__name__)
-        self.logger.debug(f"Initialized Microcontroller Handler '{name}'")
+        self.logger.debug(f"Initialized Microcontroller Handler '{name}' for {ip}:{port}'")
     # -------------------------------------------------------------------------
     # Helpers (PRIVATE)
     # -------------------------------------------------------------------------
