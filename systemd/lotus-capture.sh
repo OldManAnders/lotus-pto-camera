@@ -6,7 +6,7 @@ count=0
 retry_timer=30
 
 # Setup log dir
-OUTPUTDIR="/home/aau/LOTUS-PTO_studentwork/"
+OUTPUTDIR="/home/aau/lotus-data/"
 mkdir -p "$OUTPUTDIR"
 LOGDIR="$OUTPUTDIR/logs/"
 mkdir -p "$LOGDIR"
@@ -31,7 +31,7 @@ PYTHON_BIN="./venv/bin/python3"
 # Keep retrying until
 until [ $count -ge $MAX_RETRIES ]; do
     # Image acquisition begins
-    $PYTHON_BIN main.py usb_cam --output_path $OUTPUTDIR -c prototypeLongExp bright -c prototypeLongExp dim
+    $PYTHON_BIN main.py any --output_path $OUTPUTDIR -c prototypeLongExp bright -c prototypeLongExp dim
     break
 
     count=$((count+1))

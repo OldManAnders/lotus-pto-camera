@@ -3,7 +3,7 @@ This script executes a series of image captures with a set of given camera param
 The lighting and camera parameters are called by the names specified in the config.yaml.
 To acquire from several rigs, this script should be executed for every camera setup
 '''
-import argparse, yaml, logging, traceback, sys
+import argparse, yaml, logging, traceback, sys, datetime, os
 from camera.camera_handler import CameraHandler
 from microcontroller.microcontroller_handler import MicrocontrollerHandler
 
@@ -70,13 +70,19 @@ if args.list_configs:
 rig = __CONFIG__["setups"][args.rig]
 logger.debug(f"Initializing setup: {args.rig}")
 
+# Creating daily folder
+today = datetime.date.today().strftime("%Y-%m-%d")
+image_output_path = os.path.join(args.output_path, "images", today)
+os.makedirs(image_output_path, exist_ok=True)
+logger.debug(f"Image output path: {image_output_path}")
+
 #Initiate camera controller
 try:
     if args.disable_camera:
         camera_handler = None
         logger.warning(f"'--disable_camera' set ({args.disable_camera}): Camera control is disabled")
     else:
-        camera_handler = CameraHandler(ip=rig["camera"]["ip"], name=f"{args.rig},Camera", output_folder=args.output_path)
+        camera_handler = CameraHandler(ip=rig["camera"]["ip"], name=f"{args.rig},Camera", output_folder=image_output_path)
 except:
     #Format stacktraces into a single line with | markers to indicate linebreaks
     err = traceback.format_exc().replace("\n", "|")
