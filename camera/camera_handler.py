@@ -62,15 +62,18 @@ class CameraHandler:
         # Setup config
         if config:
             self.load_config(config)
-
-        if interval is not None:
-            self.run_in_thread(self.auto_pic_snapper, interval)
+        
+        # Converter to ensure output format is allways the same
+        self.converter = pylon.ImageFormatConverter()
+        self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
+        self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
+        self.converter.OutputColorSpace = pylon.BslColorSpace_RGB8
 
     def convert_to_bgr(self, grab_result):
         PixelFormat = grab_result.PixelType
         return self.converter.Convert(grab_result).GetArray()
 
-    def snap_pic(self, cam_config_name="factory", light_config_name="NA") -> None:
+    def snap_pic(self, cam_config_name="default", light_config_name="NA") -> None:
         """
         Captures a single frame from the Basler camera and saves it to disk.
         If called by the user, prompts for saving or viewing the image.
