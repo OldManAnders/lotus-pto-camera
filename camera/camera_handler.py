@@ -32,9 +32,9 @@ __PIXEL_FORMAT_MAP__ = {
 }
 
 class CameraHandler:
-    def __init__(self, config=None, ip=None, interval=None, name="NA, NA", output_folder="./captured_images") -> None:
+    def __init__(self, config=None, ip=None, name="NA, NA", output_folder="./captured_images") -> None:
         # store output folder path
-        self.output_folder = os.path.join(output_folder, "images/")
+        self.output_folder = output_folder
         os.makedirs(self.output_folder, exist_ok=True)
 
         #Mark initiation
@@ -95,7 +95,8 @@ class CameraHandler:
             if grabResult.GrabSucceeded():
                 img = self.convert_to_bgr(grabResult)
                 timestamp = time.strftime("%Y%m%d-%H%M%S")
-                filename = f"{timestamp}_{self.name}_{cam_config_name}_{light_config_name}.png"
+                rig_name = self.name.split(",")[0]
+                filename = f"{timestamp}_{rig_name}_{cam_config_name}_{light_config_name}.png"
                 full_path = os.path.join(self.output_folder, filename)
                 cv2.imwrite(full_path, img)
                 self.logger.debug(f"Auto saved image as {full_path}")

@@ -14,7 +14,7 @@ LOGFILE="$LOGDIR/$(date +%Y-%m-%d).log"
 
 # Setup Logging function (to collate with python)
 log_system() {
-    echo ",[SYSTEM],$*"
+    echo "$(date +%Y-%m-%d%H:%M:%S),[SYSTEM],$*"
 }
 
 # Apply logging to all stdouts (Bash and Python)
