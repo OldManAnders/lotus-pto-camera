@@ -25,7 +25,7 @@ exec >> "$LOGFILE" 2>&1 #Buffered logging to file
 log_system "Routine capture service started"
 
 # Set cwd and python env path
-cd /home/aau/LOTUS-PTO_studentwork/
+cd /home/aau/lotus-pto-camera/
 PYTHON_BIN="./venv/bin/python3"
 
 # Keep retrying until
