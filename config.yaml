@@ -1,20 +1,20 @@
 DEFAULT: 
   camera_config: &default_camera_settings # See camera_variables.md documentation
       # Image format settings
-      Width: 3536
-      Height: 3536
-      OffsetX: 6 
-      OffsetY: 8
+      Width: 3548
+      Height: 3548
+      OffsetX: 0 
+      OffsetY: 4
       BslColorSpace: "Off"
-      PixelFormat: "BGR8"
-      LUTEnable: false
+      PixelFormat: "BayerRG8"
+      LUTEnable: True
       # Image Capture settings
       ExposureTime: 15000.0
       Gain: 1.0
       gamma: 1.0
       # Video settings
-      AcquisitionFrameRateEnable: False
-      AcquisitionFrameRate: 30
+      AcquisitionFrameRateEnable: True
+      AcquisitionFrameRate: 1.0
       # Auto settings
       AutoTargetBrightness: 0.5   # Mellem 0.0 og 1.0
       AutoFunction: "MinimizeGain" # "MinimizeGain", eller "MinimizeExposureTime"
@@ -46,7 +46,7 @@ setups:
       serial: N/A
       settings: *default_camera_settings
     microcontroller:
-      ip: 192,168,10.101
+      ip: 192.168.10.101
       port: 80
     light:
       settings: *default_light_settings
