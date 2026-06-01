@@ -5,8 +5,8 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=/home/aau/LOTUS-PTO_studentwork
-ExecStart=/usr/bin/bash /home/aau/LOTUS-PTO_studentwork/systemd/lotus-capture.sh
+WorkingDirectory=/home/aau/lotus-pto-camera
+ExecStart=/usr/bin/bash /home/aau/lotus-pto-camera/systemd/lotus-capture.sh
 User=root
 
 # Retry once if the entire script fails
