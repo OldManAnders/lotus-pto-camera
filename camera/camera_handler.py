@@ -72,7 +72,15 @@ class CameraHandler:
         PixelFormat = grab_result.PixelType
         return self.converter.Convert(grab_result).GetArray()
 
-    def snap_pic(self, cam_config_name="default", light_config_name="NA") -> None:
+    def save_image(self, img, cam_config_name=None,light_config_name=None):
+        timestamp = time.strftime("%Y%m%d-%H%M%S")
+        rig_name = self.name.split(",")[0]
+        filename = f"{timestamp}_{rig_name}_{cam_config_name}_{light_config_name}.png"
+        full_path = os.path.join(self.output_folder, filename)
+        cv2.imwrite(full_path, img)
+        self.logger.debug(f"Auto saved image as {full_path}")
+
+    def capture_image(self, cam_config_name="default", light_config_name="NA") -> None:
         """
         Captures a single frame from the Basler camera and saves it to disk.
         If called by the user, prompts for saving or viewing the image.
@@ -94,146 +102,13 @@ class CameraHandler:
 
             if grabResult.GrabSucceeded():
                 img = self.convert_to_bgr(grabResult)
-                timestamp = time.strftime("%Y%m%d-%H%M%S")
-                rig_name = self.name.split(",")[0]
-                filename = f"{timestamp}_{rig_name}_{cam_config_name}_{light_config_name}.png"
-                full_path = os.path.join(self.output_folder, filename)
-                cv2.imwrite(full_path, img)
-                self.logger.debug(f"Auto saved image as {full_path}")
+                grabResult.Release()
+                return img
 
             else:
                 self.logger.error("Failed to grab image.")
 
             grabResult.Release()
-
-        except Exception as e:
-            self.logger.error(f"Error capturing image: {e}")
-            self.try_reconnect()
-
-    def stream(self) -> None:
-        """
-        Starts a live video stream from the Basler camera using OpenCV.
-
-        Raises:
-            TimeoutException: If the camera fails to return a frame within 5000ms.
-        """
-
-        try:
-            with self.camera_mutex:
-                self.camera.StartGrabbing(pylon.GrabStrategy_LatestImageOnly)
-
-                # Converter til OpenCV format (fra Basler format til BGR/RGB) (Skal kun bruges ved bayer rg 8)
-                #converter = pylon.ImageFormatConverter()
-                #converter.OutputPixelFormat = pylon.PixelType_BGR8packed
-                #converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
-
-                print("Live view kører... Tryk på 'q' for at afslutte.")
-                self.logger.debug("Live view started.")
-
-                prev_time = time.time()
-
-                while self.camera.IsGrabbing():
-                    grabResult = self.camera.RetrieveResult(
-                        5000, pylon.TimeoutHandling_ThrowException
-                    )
-
-                    if grabResult.GrabSucceeded():
-                        # Konverter billedet til et format OpenCV kan forstå (numpy array)
-                        #image = converter.Convert(grabResult)
-                        #frame = image.GetArray()
-
-                        frame = grabResult.Array
-
-                        # Calculate FPS
-                        current_time = time.time()
-                        fps_actual = 1 / (current_time - prev_time)
-                        prev_time = current_time
-
-                        # Overlay FPS text on the image
-                        cv2.putText(
-                            frame,
-                            f"FPS: {fps_actual:.1f}",
-                            (10, 30),
-                            cv2.FONT_HERSHEY_SIMPLEX,
-                            1,
-                            (0, 255, 0),
-                            2,
-                        )
-
-                        # Vis billedet i et vindue
-                        cv2.imshow("Basler ace 2 Live View", frame)
-
-                        # Stop hvis brugeren trykker på 'q'
-                        if cv2.waitKey(1) & 0xFF == ord("q"):
-                            self.logger.debug("Live view stopped by user.")
-                            break
-                    else:
-                        self.logger.error("Failed to grab image (stream).")
-
-                    grabResult.Release()
-
-                # Ryd op
-                self.camera.StopGrabbing()
-
-            cv2.destroyAllWindows()
-        
-        except Exception as e:
-            self.logger.error(f"Error during live stream: {e}")
-            self.try_reconnect()
-
-    def auto_pic_snapper(self, interval: int) -> None:
-        """
-        Automatically takes pictures at specified intervals.
-
-        Args:
-            interval (int): Time in seconds between each picture.
-
-        Raises:
-            TimeoutException: If the camera fails to return a frame within 5000ms.
-        """
-
-        self.logger.debug(f"Auto picture snapper started with interval {interval} seconds.")
-        
-        while True:
-            self.snap_pic()
-            self.logger.debug(f"Captured image at: {time.strftime("%Y%m%d-%H%M%S")}")
-            time.sleep(interval)
-
-    def manual_capture(self):
-        try:
-            with self.camera_mutex:
-                self.camera.StartGrabbingMax(1)
-
-                grabResult = self.camera.RetrieveResult(
-                    5000, pylon.TimeoutHandling_ThrowException
-                )
-
-            if grabResult.GrabSucceeded():
-                img = grabResult.Array
-                while True:
-                    user_input = input(
-                        "Press s to save the image, v to view or q to quit: "
-                    )
-
-                    if user_input == "s":
-                        timestamp = time.strftime("%Y%m%d-%H%M%S")
-                        filename = f"{timestamp}_{self.name}_NA_NA.png"
-                        full_path = os.path.join(self.output_folder, filename)
-                        cv2.imwrite(full_path, img)
-                        self.logger.debug(f"User saved image as {full_path}")
-
-                    elif user_input == "v":
-                        cv2.imshow("Captured Image", img)
-                        cv2.waitKey(0)
-                        cv2.destroyAllWindows()
-
-                    elif user_input == "q":
-                        break
-            
-                    else:
-                        print("Invalid input. Please try again.")
-            else:
-                self.logger.error(f"Failed to grab image")
 
         except Exception as e:
             self.logger.error(f"Error capturing image: {e}")
@@ -253,6 +128,16 @@ class CameraHandler:
 
         except Exception as e:
             self.logger.error(f"Reconnection failed: {e}")
+
+    def sleep(self):
+        """Puts the camera into standby mode to save power. Can be used between captures."""
+        self.camera.BslSensorStandby.Execute()
+        self.logger.debug("Camera put to sleep")
+    
+    def wake(self):
+        """Wakes the camera from standby mode."""
+        self.camera.BslSensorOn.Execute()
+        self.logger.debug("Camera woken up")
 
     def close(self):
         if hasattr(self, "camera") and self.camera.IsOpen():

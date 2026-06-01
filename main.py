@@ -83,6 +83,7 @@ try:
         logger.warning(f"'--disable_camera' set ({args.disable_camera}): Camera control is disabled")
     else:
         camera_handler = CameraHandler(ip=rig["camera"]["ip"], name=f"{args.rig},Camera", output_folder=image_output_path)
+        camera_handler.wake() #Ensure camera is awake and ready for capture
 except:
     #Format stacktraces into a single line with | markers to indicate linebreaks
     err = traceback.format_exc().replace("\n", "|")
@@ -121,6 +122,7 @@ if micro_controller:
     if resp["success"]:
         for key, val in resp["data"].items():
             logger.telemetry(val, name=f"{args.rig},{key}")
+
 if camera_handler:
     logger.telemetry(camera_handler.camera.DeviceTemperature.Value, name=f"{args.rig},Camera_Temperature")
 
@@ -147,8 +149,9 @@ try:
             #Set camera settings
             camera_handler.load_config(__CONFIG__["camera_configs"][cam_config_name])
             #Capture image
-            camera_handler.snap_pic(cam_config_name=cam_config_name, light_config_name=light_config_name)
-    
+            img = camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
+            camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
+
     # Post capture telemetry
     if micro_controller:
         #Temperature sensor
@@ -172,6 +175,7 @@ try:
         micro_controller.send_command("lightOff")
 
     if camera_handler:
+        camera_handler.sleep() #Put camera to sleep to save power between captures
         camera_handler.close()
 
 except:
