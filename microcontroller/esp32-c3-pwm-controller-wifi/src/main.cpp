@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <ArduinoOTA.h>
 #include "config.h"
 #include "http_server.h"
 #include "resources/pwm_controller.h"
@@ -58,11 +57,9 @@ static void connectNetwork() {
     WiFi.mode(WIFI_STA);
     WiFi.disconnect(true);
     delay(100);
-    digitalWrite(Config::ONBOARD_LED_PIN, HIGH);
     Serial.print("Connecting to WiFi");
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED) {
-      digitalWrite(Config::ONBOARD_LED_PIN, HIGH);
       if (millis() - start > 15000) {
           Serial.println("\nWiFi timeout — check credentials");
           // optionally restart: ESP.restart();
@@ -101,30 +98,11 @@ static void maintainNetwork() {
   #endif
 }
 
-static void setupOTA() {
-  ArduinoOTA.setHostname(Config::HOSTNAME);  // optional, shows in IDE
-  ArduinoOTA.setPassword(Config::OTAAUTH);
-
-  ArduinoOTA.onStart([]() {
-    Serial.println("OTA starting...");
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("OTA done — rebooting");
-  });
-  ArduinoOTA.onError([](ota_error_t e) {
-    Serial.printf("OTA error [%u]\n", e);
-  });
-
-  ArduinoOTA.begin();
-  Serial.println("OTA ready");
-}
-
 void setup() {
   Serial.begin(115200);
   delay(2000);
   Serial.println("Connecting to network");
   connectNetwork();  // blocks until first connection
-  setupOTA();
 
   Serial.println("Initializing PWM controller");
   pwm = new PwmController();
@@ -180,7 +158,6 @@ void loop() {
       #endif
     );
     _serverStarted = true;
-    digitalWrite(Config::ONBOARD_LED_PIN, HIGH);
   }
   httpServer->loop();
 }
