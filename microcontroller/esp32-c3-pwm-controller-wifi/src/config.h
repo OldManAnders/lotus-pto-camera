@@ -6,10 +6,6 @@
 
 #define USE_BMP280_SENSOR // → include BMP280 temperature/pressure sensor support
 namespace Config {
-  //-------------------OTA configuration-----------------------//
-  static const char* HOSTNAME = "Lotus-Controller01";
-  static const char* OTAAUTH = "LotusOTA";
-
   //-------------------Network configuration-----------------------//
   constexpr uint16_t SERVER_PORT = 80;
   constexpr unsigned long TIMEOUT_MS = 100000;

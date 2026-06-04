@@ -63,7 +63,7 @@ public:
       _send(200, doc);
     });
 
-    // POST /get  body: ["light.0", "light.1"]
+    // POST /get  body: ["light1", "light2"]
     _server.on("/get", HTTP_POST, [this]() {
       JsonDocument req;
       if (deserializeJson(req, _server.arg("plain"))) {
@@ -94,7 +94,7 @@ public:
       _send(200, reply);
     });
 
-    // POST /set  body: {"led0": 128, "wiper0": 90}
+    // POST /set  body: {"light1": 128, "wiper0": 90}
     _server.on("/set", HTTP_POST, [this]() {
       JsonDocument req;
       if (deserializeJson(req, _server.arg("plain"))) {
@@ -485,25 +485,25 @@ private:
   <div class="panel">
     <div class="panel-title">Lights</div>
 
-    <div class="channel" id="row-led0">
+    <div class="channel" id="row-light1">
       <div class="ch-label">Light 0<span>IO02</span></div>
-      <input type="range" min="0" max="255" value="0" id="led0"
-             oninput="onSlider('led0', this.value)">
-      <div class="ch-value" id="val-led0">0</div>
+      <input type="range" min="0" max="255" value="0" id="light1"
+             oninput="onSlider('light1', this.value)">
+      <div class="ch-value" id="val-light1">0</div>
     </div>
 
-    <div class="channel" id="row-led1">
+    <div class="channel" id="row-light2">
       <div class="ch-label">Light 1<span>IO04</span></div>
-      <input type="range" min="0" max="255" value="0" id="led1"
-             oninput="onSlider('led1', this.value)">
-      <div class="ch-value" id="val-led1">0</div>
+      <input type="range" min="0" max="255" value="0" id="light2"
+             oninput="onSlider('light2', this.value)">
+      <div class="ch-value" id="val-light2">0</div>
     </div>
 
-    <div class="channel" id="row-led2">
+    <div class="channel" id="row-light3">
       <div class="ch-label">Light 2<span>IO05</span></div>
-      <input type="range" min="0" max="255" value="0" id="led2"
-             oninput="onSlider('led2', this.value)">
-      <div class="ch-value" id="val-led2">0</div>
+      <input type="range" min="0" max="255" value="0" id="light3"
+             oninput="onSlider('light3', this.value)">
+      <div class="ch-value" id="val-light3">0</div>
     </div>
 
     <!-- Set All -->
@@ -523,7 +523,7 @@ private:
       <div class="ch-label">WIPER 0<span>IO01</span></div>
       <input type="range" min="0" max="180" value="0" id="wiper0"
              oninput="onSlider('wiper0', this.value)">
-      <div class="ch-value" id="val-wiper0">0</div>
+      <div class="ch-value" id="val-wiper">0</div>
     </div>
   </div>
 
@@ -583,7 +583,7 @@ private:
       const v = parseInt(document.getElementById('all-lights').value);
       sendCmd('setAll', { value: v });
       // Sync light sliders to match
-      ['led0','led1','led2'].forEach(id => {
+      ['light1','light2','light3'].forEach(id => {
         document.getElementById(id).value = v;
         document.getElementById('val-' + id).textContent = v;
       });

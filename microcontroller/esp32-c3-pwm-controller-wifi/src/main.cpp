@@ -101,8 +101,6 @@ static void maintainNetwork() {
 void setup() {
   Serial.begin(115200);
   delay(2000);
-  Serial.println("Connecting to network");
-  connectNetwork();  // blocks until first connection
 
   Serial.println("Initializing PWM controller");
   pwm = new PwmController();
@@ -120,6 +118,9 @@ void setup() {
     }
   #endif
   
+  Serial.println("Connecting to network");
+  connectNetwork();  // blocks until first connection
+
   Serial.println("Starting http server");
   httpServer  = new HttpServer();
   if (pwmProvider != nullptr) {
@@ -134,7 +135,6 @@ void setup() {
 }
 
 void loop() {
-  ArduinoOTA.handle();   // add this line at the top
   #if defined(TRANSPORT_ETHERNET)
     Ethernet.maintain();  // renew DHCP lease when needed
   #endif

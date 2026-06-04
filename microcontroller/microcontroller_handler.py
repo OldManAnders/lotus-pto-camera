@@ -93,7 +93,7 @@ class MicrocontrollerHandler:
         return self._last_ping_ok
 
     def set_values(self, keyvals: dict) -> Optional[dict]:
-        """POST /set — accepts keys like 'light.1'; converts to device format."""
+        """POST /set — accepts keys like 'light1'; converts to device format."""
         # No persistent connection required; try sending regardless
         payload = {}
         for k, v in keyvals.items():
@@ -105,7 +105,7 @@ class MicrocontrollerHandler:
         return reply
 
     def get_values(self, keys: list) -> Optional[dict]:
-        """POST /get — accepts keys like 'light.1' and returns normalized data.
+        """POST /get — accepts keys like 'light1' and returns normalized data.
 
         Returns: {'success': True, 'data': {<requested_key>: value, ...}}
         """
@@ -175,8 +175,8 @@ if __name__ == "__main__":
             time.sleep(1)
 
         print("Ready. Commands:")
-        print("  set <key> <value>   — e.g.  set light.1 128  (or set led0 128)")
-        print("  get <key>           — e.g.  get light.1  (or get led0)")
+        print("  set <key> <value>   — e.g.  set light1 128  (or set led0 128)")
+        print("  get <key>           — e.g.  get light1  (or get led0)")
         print("  cmd <command> [arg] — e.g.  cmd lightOn  OR  cmd setAll 200")
         print("  status")
         print("  quit")

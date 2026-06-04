@@ -136,9 +136,9 @@ bool PwmProvider::matchesKey(const char* key) const {
 
 bool PwmProvider::handleSet(const char* key, const JsonVariant& value, JsonDocument& reply) {
   uint8_t ch = 0;
-  if      (strcmp(key, "light.1")   == 0) ch = 0;
-  else if (strcmp(key, "light.2")   == 0) ch = 1;
-  else if (strcmp(key, "light.3")   == 0) ch = 2;
+  if      (strcmp(key, "light1")   == 0) ch = 0;
+  else if (strcmp(key, "light2")   == 0) ch = 1;
+  else if (strcmp(key, "light3")   == 0) ch = 2;
   else if (strcmp(key, "wiper") == 0) ch = 3;
 
   _pwm.setChannel(ch, value.as<uint8_t>());
@@ -150,9 +150,9 @@ bool PwmProvider::handleSet(const char* key, const JsonVariant& value, JsonDocum
 
 bool PwmProvider::handleGet(const char* key, JsonDocument& reply) {
   uint8_t ch = 0;
-  if      (strcmp(key, "light.1")   == 0) ch = 0;
-  else if (strcmp(key, "light.2")   == 0) ch = 1;
-  else if (strcmp(key, "light.3")   == 0) ch = 2;
+  if      (strcmp(key, "light1")   == 0) ch = 0;
+  else if (strcmp(key, "light2")   == 0) ch = 1;
+  else if (strcmp(key, "3")   == 0) ch = 2;
   else if (strcmp(key, "wiper") == 0) ch = 3;
   else return false;
 
