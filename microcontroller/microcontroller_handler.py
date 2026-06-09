@@ -3,6 +3,7 @@ import threading
 import time
 import logging
 from typing import Optional
+from utils.logging_config import get_logger
 
 class MicrocontrollerHandler:
     def __init__(self, ip, port=80, timeout=5, reconnect_interval=5, heartbeat_interval=10, name="NA, NA", verbose=False) -> None:
@@ -19,8 +20,8 @@ class MicrocontrollerHandler:
         self._stop_event = threading.Event()
         self._heartbeat_thread = None
 
-        self.logger = logging.getLogger(__name__)
-        self.logger.debug(f"Initialized Microcontroller Handler '{name}' for {ip}:{port}'")
+        self.logger = get_logger(__name__, component=self.name.split(",")[0])
+        self.logger.debug("", extra={"event": "microcontroller_initialized", "details": f"Initialized microcontroller: {self.name}, IP: {self.ip}, Port: {self.port}"})
     # -------------------------------------------------------------------------
     # Helpers (PRIVATE)
     # -------------------------------------------------------------------------
@@ -34,7 +35,7 @@ class MicrocontrollerHandler:
             res.raise_for_status()
             return res.json()
         except requests.RequestException as e:
-            self.logger.error(f"GET {path} failed: {e}")
+            self.logger.error("", extra={"event": "http_get_failed", "details": f"{str(e)}"})
             # mark last ping as failed; heartbeat loop will report
             self._last_ping_ok = False
             return {"success": False, "error": str(e)}
@@ -49,7 +50,7 @@ class MicrocontrollerHandler:
             res.raise_for_status()
             return res.json()
         except requests.RequestException as e:
-            self.logger.error(f"POST {path} failed: {e}")
+            self.logger.error("", extra={"event": "http_post_failed", "details": f"{str(e)}"})
             # mark last ping as failed; heartbeat loop will report
             self._last_ping_ok = False
             return {"success": False, "error": str(e)}
@@ -62,11 +63,11 @@ class MicrocontrollerHandler:
             data = self._get("/ping")
             if data and data.get("type") == "pong":
                 if not self._last_ping_ok:
-                    self.logger.debug("Ping successful")
+                    self.logger.debug("", extra={"event": "ping", "details": "success"})
                 self._last_ping_ok = True
             else:
                 if self._last_ping_ok:
-                    self.logger.warning("Ping failed")
+                    self.logger.warning("", extra={"event": "ping", "details": "failed"})
                 self._last_ping_ok = False
             time.sleep(self.heartbeat_interval)
 
@@ -101,7 +102,7 @@ class MicrocontrollerHandler:
 
         reply = self._post("/set", payload)
         if reply and not reply.get("success"):
-            self.logger.error(f"set_values error: {reply.get('error')}")
+            self.logger.error("", extra={"event": "set_values_error", "details": f"{reply.get('error')}"})
         return reply
 
     def get_values(self, keys: list) -> Optional[dict]:
@@ -118,7 +119,7 @@ class MicrocontrollerHandler:
         if not reply:
             return None
         if not reply.get("success"):
-            self.logger.error(f"get_values error: {reply.get('error')}")
+            self.logger.error("", extra={"event": "get_values_error", "details": f"{reply.get('error')}"})
             return reply
 
         data = reply.get("data", {})
@@ -142,7 +143,7 @@ class MicrocontrollerHandler:
         # Basic validation for known commands
         if cmd == "setAll":
             if not params or "value" not in params:
-                self.logger.error("send_command error: setAll requires params {'value': <0-255>}" )
+                self.logger.error("", extra={"event": "send_command_error", "details": "missing params or value"})
                 return {"success": False, "error": "missing params: value"}
 
         if cmd == "wipe": # Allow for the wiper to do its full sweep
@@ -151,78 +152,9 @@ class MicrocontrollerHandler:
             reply = self._post("/cmd", body)
 
         if reply and not reply.get("success"):
-            self.logger.error(f"send_command error: {reply.get('error')}")
+            self.logger.error("", extra={"event": "send_command_error", "details": f"{reply.get('error')}"})
         return reply
 
     def status(self) -> Optional[dict]:
         """GET /status  — returns ip, ssid, rssi"""
         return self._get("/status")
-# -----------------------------------------------------------------------------
-# CLI
-# -----------------------------------------------------------------------------
-if __name__ == "__main__":
-    ip = input("mc IP address: ").strip()
-    mc =MicrocontrollerHandler(ip, port=80, verbose=True)
-    try:
-        print("Starting heartbeat...")
-        mc.start_heartbeat()
-
-        print("Checking connection")
-        dots=0
-        while not mc.is_alive():
-            dots = (dots + 1) % 6
-            print(f"mc unreachable, waiting{'.' * dots}\r", end="")
-            time.sleep(1)
-
-        print("Ready. Commands:")
-        print("  set <key> <value>   — e.g.  set light1 128  (or set led0 128)")
-        print("  get <key>           — e.g.  get light1  (or get led0)")
-        print("  cmd <command> [arg] — e.g.  cmd lightOn  OR  cmd setAll 200")
-        print("  status")
-        print("  quit")
-
-        while True:
-            try:
-                line = input("> ").strip()
-            except EOFError:
-                break
-
-            if not line:
-                continue
-
-            parts = line.split()
-            action = parts[0].lower()
-
-            if action in ("quit", "exit"):
-                break
-            elif action == "set" and len(parts) == 3:
-                key, val = parts[1], parts[2]
-                # Try to convert to int, fall back to string
-                try:
-                    val = int(val)
-                except ValueError:
-                    pass
-                print(mc.set_values({key: val}))
-            elif action == "get" and len(parts) == 2:
-                print(mc.get_values([parts[1]]))
-            elif action == "cmd" and len(parts) >= 2:
-                cmd_name = parts[1]
-                # support: cmd setAll 200
-                if cmd_name == "setAll" and len(parts) >= 3:
-                    try:
-                        v = int(parts[2])
-                    except ValueError:
-                        print("Invalid value for setAll; must be integer 0-255")
-                        continue
-                    print(mc.send_command(cmd_name, {"value": v}))
-                else:
-                    print(mc.send_command(cmd_name))
-            elif action == "status":
-                print(mc.status())
-            else:
-                print("Unknown command or wrong number of arguments")
-
-    except KeyboardInterrupt:
-        print("\nInterrupted")
-    finally:
-        mc.stop_heartbeat()

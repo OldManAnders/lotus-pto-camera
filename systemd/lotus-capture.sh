@@ -14,7 +14,13 @@ LOGFILE="$LOGDIR/$(date +%Y-%m-%d).log"
 
 # Setup Logging function (to collate with python)
 log_system() {
-    echo "$(date +%Y-%m-%d %H:%M:%S),[SYSTEM],$*"
+    ts=$(date +%Y-%m-%d\ %H:%M:%S)
+    event="$1"
+    shift || true
+    details="$*"
+    # Escape double quotes in details for JSON
+    details_esc=$(printf '%s' "$details" | sed 's/"/\\"/g')
+    echo "$ts,INFO,lotus-capture,system,$event,\"{\\\"msg\\\":\\\"$details_esc\\\"}\""
 }
 
 # Apply logging to all stdouts (Bash and Python)

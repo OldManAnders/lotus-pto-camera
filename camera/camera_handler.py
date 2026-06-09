@@ -1,5 +1,6 @@
 from pypylon import pylon
 import cv2, time, threading, os, yaml, logging
+from utils.logging_config import get_logger
 
 __PIXEL_FORMAT_MAP__ = {
     "mono8": "Mono8",
@@ -38,8 +39,9 @@ class CameraHandler:
         os.makedirs(self.output_folder, exist_ok=True)
 
         #Mark initiation
-        self.logger = logging.getLogger(name)
-        self.logger.debug(f"Initialized Camera Handler '{name}'")
+        self.name = name
+        self.logger = get_logger(name, component=self.name.split(",")[0])
+        self.logger.debug("", extra={"event": "camera_handler_initialized", "details": f"{name}"})
 
         # Get camera
         if ip is None: #If not IP specified get first available device
@@ -51,13 +53,13 @@ class CameraHandler:
             device = tl_factory.CreateFirstDevice(device_info)
             self.camera = pylon.InstantCamera(device)
             if self.camera is None:
-                self.logger.error(f"No camera found at ip: {ip}")
+                self.logger.error("", extra={"event": "camera_not_found", "details": f"Camera not found at IP: {ip}"})
                 self.close()
 
         # Open cammera
         self.camera.Open()
         self.camera_mutex = threading.Lock()
-        self.name = name
+        
 
         # Setup config
         if config:
@@ -78,7 +80,7 @@ class CameraHandler:
         filename = f"{timestamp}_{rig_name}_{cam_config_name}_{light_config_name}.png"
         full_path = os.path.join(self.output_folder, filename)
         cv2.imwrite(full_path, img)
-        self.logger.debug(f"Auto saved image as {full_path}")
+        self.logger.debug("", extra={"event": "image_saved", "details": f"Image saved to {full_path}"})
 
     def capture_image(self, cam_config_name="default", light_config_name="NA") -> None:
         """
@@ -106,12 +108,12 @@ class CameraHandler:
                 return img
 
             else:
-                self.logger.error("Failed to grab image.")
+                self.logger.error("", extra={"event": "grab_failed", "details": f"Failed to grab image from camera {self.name}"})
 
             grabResult.Release()
 
         except Exception as e:
-            self.logger.error(f"Error capturing image: {e}")
+            self.logger.error("", extra={"event": "capture_error", "details": f"{str(e)}"})
             self.try_reconnect()
 
     def try_reconnect(self):
@@ -124,25 +126,25 @@ class CameraHandler:
             self.camera.Close()
             self.camera.Open()
             self.load_config(self.last_config)
-            self.logger.info("Camera reconnected successfully.")
+            self.logger.info("", extra={"event": "camera_reconnected", "details": f"Camera reconnected: {self.name}"})
 
         except Exception as e:
-            self.logger.error(f"Reconnection failed: {e}")
+            self.logger.error("", extra={"event": "reconnect_failed", "details": f"{str(e)}"})
 
     def sleep(self):
         """Puts the camera into standby mode to save power. Can be used between captures."""
         self.camera.BslSensorStandby.Execute()
-        self.logger.debug("Camera put to sleep")
-    
+        self.logger.debug("", extra={"event": "camera_sleep", "details": f"Camera put into standby mode: {self.name}"})
+
     def wake(self):
         """Wakes the camera from standby mode."""
         self.camera.BslSensorOn.Execute()
-        self.logger.debug("Camera woken up")
+        self.logger.debug("", extra={"event": "camera_wake", "details": f"Camera woken up: {self.name}"})
 
     def close(self):
         if hasattr(self, "camera") and self.camera.IsOpen():
             self.camera.Close()
-        self.logger.info("Stopped")
+        self.logger.info("", extra={"event": "camera_stopped", "details": f"Camera stopped: {self.name}"})
 
     def load_config(self, config):
         self.last_config = config
@@ -153,7 +155,7 @@ class CameraHandler:
         elif type(config) == dict: #Assume correct dict and continue
             self.config = config
         else:
-            self.logger.error(f"Inappropriate config type ('{type(config)}')")
+            self.logger.error("", extra={"event": "bad_config_type", "details": f"Invalid config type: {type(config)}"})
             raise TypeError(f"Inappropriate config type ('{type(config)}'), must be of type 'str' or 'dict'")
         
         try:    
@@ -187,11 +189,11 @@ class CameraHandler:
             self.camera.BalanceWhiteAuto.Value = self.config["BalanceWhiteAuto"]
 
             # Log completion
-            self.logger.debug("Camera settings updated.")
+            self.logger.debug("", extra={"event": "camera_settings_updated", "details": f"Camera settings updated: {self.name}"})
 
 
         except Exception as e:
-            self.logger.error(f"Error updating settings: {e}")
+            self.logger.error("", extra={"event": "settings_update_error", "details": f"{str(e)}"})
             #self.try_reconnect()
 
     @staticmethod
@@ -201,25 +203,3 @@ class CameraHandler:
         thread = threading.Thread(target=func, args=args, daemon=True)
         thread.start()
         return thread
-
-if __name__ == "__main__":
-    camera_handler = CameraHandler("./config.yaml")
-
-    try:
-        while True:
-            user_input = input(
-                "Enter 'p' to take a picture, 's' to start live view, 'u' to update settings, or 'q' to quit: "
-            )
-            if user_input == "p":
-                camera_handler.manual_capture()
-            elif user_input == "s":
-                camera_handler.stream()
-            elif user_input == "u":
-                camera_handler.load_config("./config.yaml")
-            elif user_input == "q":
-                break
-            else:
-                print("Invalid input. Please try again.")
-
-    finally:
-        camera_handler.close()
