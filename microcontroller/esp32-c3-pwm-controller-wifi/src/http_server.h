@@ -2,16 +2,18 @@
 #define HTTP_SERVER_H
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <WebServer.h>
 #include <ArduinoJson.h>
 #include <vector>
 #include "config.h"
 #include "resources/resource_provider.h"
 
+class NetworkManager;  // Forward declaration
+
 class HttpServer {
 public:
-  HttpServer() : _server(Config::SERVER_PORT) {}
+  HttpServer(NetworkManager* networkManager) 
+    : _server(Config::SERVER_PORT), _networkManager(networkManager) {}
 
   void addProvider(ResourceProvider* provider) {
     _providers.push_back(provider);
@@ -32,9 +34,9 @@ public:
     // GET /status
     _server.on("/status", HTTP_GET, [this]() {
       JsonDocument doc;
-      doc["ssid"] = WiFi.SSID();
-      doc["ip"]   = WiFi.localIP().toString();
-      doc["rssi"] = WiFi.RSSI();
+      doc["ssid"] = _networkManager->getSSID();
+      doc["ip"]   = _networkManager->getLocalIP();
+      doc["rssi"] = _networkManager->getSignalStrength();
       _appendSensorReadings(doc);
       _send(200, doc);
     });
@@ -149,7 +151,7 @@ public:
 
     _server.begin();
     Serial.println("HTTP server started on port " + String(Config::SERVER_PORT));
-    Serial.println("IP: " + WiFi.localIP().toString());
+    Serial.println("IP: " + _networkManager->getLocalIP());
   }
 
   // Call every loop()
@@ -159,6 +161,7 @@ public:
 
 private:
   WebServer _server;
+  NetworkManager* _networkManager;
   std::vector<ResourceProvider*> _providers;
 
   // Embedded UI — served at GET /
@@ -667,14 +670,13 @@ private:
     for (ResourceProvider* p : _providers) {
       JsonDocument sensorReply;
       if (!p->handleGet("sensor.all", sensorReply)) continue;
-      JsonObject sensor = doc.createNestedObject("sensor");
+      JsonObject sensor = doc["sensor"].to<JsonObject>();
       sensor["temperature"] = sensorReply["temperature"]["value"] | 0.0f;
       sensor["humidity"]    = sensorReply["humidity"]["value"] | 0.0f;
       sensor["pressure"]    = sensorReply["pressure"]["value"] | 0.0f;
       return true;
     }
     return false;
-
   }
 
   void _send(int code, JsonDocument& doc) {

@@ -11,8 +11,10 @@ namespace Config {
   constexpr unsigned long TIMEOUT_MS = 100000;
 
   // WIFI SPECIFIC CONFIGURATION (Only used when 'TRANSPORT_WIFI' is set)
-  static const char* WIFI_SSID = "LOTUS-PTO-server";
-  static const char* WIFI_PASS = "lotusnet123";
+  static const char* WIFI_SSID = "*******";
+  static const char* WIFI_PASS = "*******";
+  // Hostname used for DHCP and mDNS (used for both WiFi and Ethernet)
+  static const char* HOSTNAME = "lotus-pwm-controller";
 
   // Ethernet specific configuration (Only used when 'TRANSPORT_ETH' is set)
   static constexpr bool ETH_USE_DHCP = true;
