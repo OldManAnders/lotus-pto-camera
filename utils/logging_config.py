@@ -55,6 +55,24 @@ def configure_logging(level=logging.INFO, logfile: str = None):
 def get_logger(name: str, component: str = None) -> logging.LoggerAdapter:
     logger = logging.getLogger(name)
     class LoggerWithTelemetry(logging.LoggerAdapter):
+        def __init__(self, logger, extra, merge_extra: bool = True):
+            super().__init__(logger, extra)
+            self.merge_extra = merge_extra
+
+        def process(self, msg, kwargs):
+            extra = kwargs.get("extra")
+            if self.merge_extra:
+                merged = dict(self.extra) if self.extra else {}
+                if extra:
+                    merged.update(extra)
+                kwargs["extra"] = merged
+            else:
+                if extra is not None:
+                    kwargs["extra"] = extra
+                else:
+                    kwargs["extra"] = dict(self.extra) if self.extra else {}
+            return msg, kwargs
+
         def telemetry(self, event: str, details=None):
             # Use the adapter's log method so `extra` is merged with adapter extra
             self.log(TELEMETRY, "", extra={"event": event, "details": details})
