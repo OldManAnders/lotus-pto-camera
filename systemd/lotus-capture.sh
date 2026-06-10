@@ -18,9 +18,9 @@ log_system() {
     event="$1"
     shift || true
     details="$*"
-    # Escape double quotes in details for JSON
-    details_esc=$(printf '%s' "$details" | sed 's/"/\\"/g')
-    echo "$ts,INFO,lotus-capture,system,$event,\"{\\\"msg\\\":\\\"$details_esc\\\"}\""
+    # Prepare details for CSV: double any double-quotes and wrap in quotes
+    details_csv=$(printf '%s' "$details" | sed 's/"/""/g')
+    echo "$ts,INFO,lotus-capture,system,$event,\"$details_csv\""
 }
 
 # Apply logging to all stdouts (Bash and Python)
@@ -37,7 +37,7 @@ PYTHON_BIN="./venv/bin/python3"
 # Keep retrying until
 until [ $count -ge $MAX_RETRIES ]; do
     # Image acquisition begins
-    $PYTHON_BIN main.py any --output_path $OUTPUTDIR -c prototypeLongExp bright -c prototypeLongExp dim
+    $PYTHON_BIN main.py rig1 --output_path $OUTPUTDIR -c prototypeLongExp bright --disable_microcontroller --log_level debug
     break
 
     count=$((count+1))
