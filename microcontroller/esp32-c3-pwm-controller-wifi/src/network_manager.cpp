@@ -1,5 +1,4 @@
 #include "network_manager.h"
-#include <ESPmDNS.h>
 
 NetworkManager::NetworkManager()
   : _lastReconnectAttempt(0), _serverStarted(false) {}
@@ -56,7 +55,7 @@ void NetworkManager::_connectNetworkWiFi() {
   // Ensure DHCP hostname is set before connecting
   WiFi.setHostname(Config::HOSTNAME);
   WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true);
+  //WiFi.disconnect(true);
   delay(100);
   Serial.print("Connecting to WiFi");
   unsigned long start = millis();
@@ -69,20 +68,21 @@ void NetworkManager::_connectNetworkWiFi() {
     Serial.print('.');
   }
   Serial.println("\nWiFi connected: " + WiFi.localIP().toString());
-  // Start mDNS so the device is reachable at hostname.local
-  if (!MDNS.begin(Config::HOSTNAME)) {
-    Serial.println("Warning: mDNS begin failed");
-  }
 }
 
 #if defined(TRANSPORT_ETHERNET)
 void NetworkManager::_connectNetworkEthernet() {
   static bool ethInitialised = false;
   if (!ethInitialised) {
+    // Initialize SPI with your specific hardware pins
+    SPI.begin(Config::ETH_SCK_PIN, Config::ETH_MISO_PIN, Config::ETH_MOSI_PIN, Config::ETH_CS_PIN);
     Ethernet.init(Config::ETH_CS_PIN);
     ethInitialised = true;
   }
 
+  Serial.print("Connecting to Ethernet (Initializing hardware)");
+  
+  // Start the hardware configuration
   bool ok = Config::ETH_USE_DHCP
     ? Ethernet.begin(const_cast<uint8_t*>(Config::ETH_MAC)) != 0
     : (Ethernet.begin(
@@ -93,44 +93,56 @@ void NetworkManager::_connectNetworkEthernet() {
         IPAddress(Config::ETH_MASK)
       ), true);
 
-  delay(200);
-  if (ok && isConnected()) {
-    Serial.println("Ethernet connected: " + Ethernet.localIP().toString());
-    // Start mDNS so the device is reachable at hostname.local
-    if (!MDNS.begin(Config::HOSTNAME)) {
-      Serial.println("Warning: mDNS begin failed");
+  // If the hardware initialization failed entirely (e.g., bad SPI wiring)
+  if (!ok) {
+    Serial.println("\nEthernet hardware initialization failed — check config and wiring");
+    return;
+  }
+
+  // Progress monitoring: Wait for link status and an IP address
+  Serial.print("\nWaiting for Ethernet link and IP");
+  unsigned long start = millis();
+  constexpr unsigned long timeout = 15000; 
+  while (!isConnected() || Ethernet.localIP() == IPAddress(0,0,0,0) || Ethernet.localIP() == IPAddress(255,255,255,255)) { // <-- Add this check
+         
+    if (millis() - start > timeout) {
+      Serial.println("\nEthernet timeout — check cable connection or DHCP server");
+      break;
     }
-  } else {
-    Serial.println("Ethernet failed — check cable and config");
+    delay(500);
+    Serial.print('.');
+  }
+
+  // Double check that our final IP address is entirely valid
+  if (isConnected() && Ethernet.localIP() != IPAddress(0,0,0,0) && Ethernet.localIP() != IPAddress(255,255,255,255)) {
+    Serial.println("\nEthernet connected: " + Ethernet.localIP().toString());
+  } 
+  else {
+    Serial.println("\nEthernet failed to secure a valid IP layout.");
   }
 }
 #endif
 
 void NetworkManager::_maintainNetworkWiFi() {
   if (isConnected()) {
-    if (!_serverStarted) {
-      // start mDNS once when connection is (re)established
-      if (!MDNS.begin(Config::HOSTNAME)) {
-        Serial.println("Warning: mDNS begin failed");
-      }
-    }
     _serverStarted = true;
     return;
   }
+  else  {
+    // Link just dropped
+    _serverStarted = false;
 
-  // Link just dropped
-  _serverStarted = false;
+    unsigned long now = millis();
+    if (now - _lastReconnectAttempt < RECONNECT_INTERVAL_MS) return;
+    _lastReconnectAttempt = now;
 
-  unsigned long now = millis();
-  if (now - _lastReconnectAttempt < RECONNECT_INTERVAL_MS) return;
-  _lastReconnectAttempt = now;
-
-  Serial.println("WiFi lost — reconnecting");
-  WiFi.disconnect(true);
-  delay(100);
-  // Ensure DHCP hostname is set before reconnecting
-  WiFi.setHostname(Config::HOSTNAME);
-  WiFi.begin(Config::WIFI_SSID, Config::WIFI_PASS);
+    Serial.println("WiFi lost — reconnecting");
+    WiFi.disconnect(true);
+    delay(100);
+    // Ensure DHCP hostname is set before reconnecting
+    WiFi.setHostname(Config::HOSTNAME);
+    WiFi.begin(Config::WIFI_SSID, Config::WIFI_PASS);
+  }
 }
 #if defined(TRANSPORT_ETHERNET)
 
@@ -153,9 +165,6 @@ void NetworkManager::_maintainNetworkEthernet() {
     : (Ethernet.maintain(), true);
   if (ok && isConnected()) {
     Serial.println("Ethernet restored: " + Ethernet.localIP().toString());
-    if (!MDNS.begin(Config::HOSTNAME)) {
-      Serial.println("Warning: mDNS begin failed");
-    }
   }
 }
 

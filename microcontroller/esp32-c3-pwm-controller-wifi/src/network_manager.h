@@ -3,13 +3,13 @@
 
 #include <Arduino.h>
 #include "config.h"
+#include <SPI.h>
 
 #if defined(TRANSPORT_ETHERNET)
   #include <Ethernet.h>
-#else
-  #include <WiFi.h>
 #endif
 
+#include <WiFi.h>
 class NetworkManager {
 public:
   NetworkManager();
