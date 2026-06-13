@@ -13,10 +13,10 @@
 #define ETH_RST   6
 
 // Servo/LED pins - adjust to your wiring
-#define LED1_PIN   0
-#define LED2_PIN   1
+#define LED1_PIN   1
+#define LED2_PIN   5
 #define LED3_PIN   4
-#define WIPER_PIN  5
+#define WIPER_PIN  2
 
 // Timeout in milliseconds before returning to zero
 #define CMD_TIMEOUT 5000
@@ -27,7 +27,7 @@
 // Wiper settings
 #define WIPER_MIN  0
 #define WIPER_MAX  180
-#define WIPER_STEP 5
+#define WIPER_STEP 1
 #define WIPER_DELAY 20
 
 // Static IP configuration (set USE_STATIC_IP to true to enable)
@@ -125,6 +125,10 @@ void runWiper() {
   wiperActive = false;
 }
 
+static uint16_t brightnessToUs(uint8_t value) {
+  return map(value, 0, 255, 1100, 1900);
+}
+
 void handleNotFound() {
   String path = server.uri();
   
@@ -145,7 +149,8 @@ void handleNotFound() {
     if (ledNum >= 1 && ledNum <= 3 && path.charAt(5) == '/') {
       String valueStr = path.substring(6);
       int value = valueStr.toInt();
-      value = constrain(value, 0, 180);
+      value = constrain(value, 0, 255);
+      value = brightnessToUs(value);
       
       int idx = ledNum - 1;
       ledValues[idx] = value;
@@ -157,7 +162,6 @@ void handleNotFound() {
       return;
     }
   }
-  
   server.send(404, "text/plain", "Not Found");
 }
 
