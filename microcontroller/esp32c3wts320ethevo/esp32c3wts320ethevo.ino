@@ -3,39 +3,7 @@
 #include <WebServer.h>
 #include <ESP32Servo.h>
 #include <esp_task_wdt.h>
-
-// DM9051 SPI pins for ETH01-EVO
-#define ETH_CS    9
-#define ETH_CLK   7
-#define ETH_MOSI  10
-#define ETH_MISO  3
-#define ETH_INT   8
-#define ETH_RST   6
-
-// Servo/LED pins - adjust to your wiring
-#define LED1_PIN   1
-#define LED2_PIN   5
-#define LED3_PIN   4
-#define WIPER_PIN  2
-
-// Timeout in milliseconds before returning to zero
-#define CMD_TIMEOUT 5000
-
-// Watchdog timeout (seconds)
-#define WDT_TIMEOUT 30
-
-// Wiper settings
-#define WIPER_MIN  0
-#define WIPER_MAX  180
-#define WIPER_STEP 1
-#define WIPER_DELAY 20
-
-// Static IP configuration (set USE_STATIC_IP to true to enable)
-#define USE_STATIC_IP true
-IPAddress staticIP(192, 168, 1, 30);
-IPAddress gateway(192, 168, 1, 1);
-IPAddress subnet(255, 255, 255, 0);
-IPAddress dns(192, 168, 0, 1);
+#include "config.h"
 
 bool ethConnected = false;
 WebServer server(80);
@@ -98,12 +66,12 @@ void runWiper() {
   Serial.println("Wiper started");
   
   int range = WIPER_MAX - WIPER_MIN;
-  int steps = 100;  // Total steps for smooth motion
+  int WIPER_STEPS = 100;  // Total WIPER_STEPS for smooth motion
   
   // Sweep min to max with ease-in-out
-  for (int i = 0; i <= steps; i++) {
+  for (int i = 0; i <= WIPER_STEPS; i++) {
     esp_task_wdt_reset();
-    float t = (float)i / steps;
+    float t = (float)i / WIPER_STEPS;
     // Ease-in-out: smooth acceleration and deceleration
     float eased = t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2;
     int pos = WIPER_MIN + (int)(eased * range);
@@ -112,9 +80,9 @@ void runWiper() {
   }
   
   // Sweep max to min with ease-in-out
-  for (int i = 0; i <= steps; i++) {
+  for (int i = 0; i <= WIPER_STEPS; i++) {
     esp_task_wdt_reset();
-    float t = (float)i / steps;
+    float t = (float)i / WIPER_STEPS;
     float eased = t < 0.5 ? 2 * t * t : 1 - pow(-2 * t + 2, 2) / 2;
     int pos = WIPER_MAX - (int)(eased * range);
     wiper.write(pos);
@@ -126,7 +94,7 @@ void runWiper() {
 }
 
 static uint16_t brightnessToUs(uint8_t value) {
-  return map(value, 0, 255, 1100, 1900);
+  return map(value, LED_MIN, LED_MAX, 1100, 1900);
 }
 
 void handleNotFound() {
