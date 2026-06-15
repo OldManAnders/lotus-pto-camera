@@ -60,7 +60,6 @@ class CameraHandler:
         self.camera.Open()
         self.camera_mutex = threading.Lock()
         
-
         # Setup config
         if config:
             self.load_config(config)
@@ -142,8 +141,7 @@ class CameraHandler:
         self.logger.debug("", extra={"event": "camera_wake", "details": f"Camera woken up: {self.name}"})
 
     def close(self):
-        if hasattr(self, "camera") and self.camera.IsOpen():
-            self.camera.Close()
+        self.camera.Close()
         self.logger.info("", extra={"event": "camera_stopped", "details": f"Camera stopped: {self.name}"})
 
     def load_config(self, config):

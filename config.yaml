@@ -30,11 +30,22 @@ DEFAULT:
     light.2: 128 # Strength in 8bit values (0-255)
     light.3: 128 # Strength in 8bit values (0-255
 
+network:
+  camera_switch_mac: "58:d6:1f:7c:65:03"
+  microcontroller_switch_mac: "58:d6:1f:7c:65:03"
+  unifi:
+    host: "https://192.168.1.1:8443"
+    username: "aau"
+    password: "aau" 
+    verify_ssl: false
+
 # named hardware cofigurations for individiual rigs
 setups:
   any:
     camera:
       ip: null
+      switch_port: null
+      serial: null
       settings: *default_camera_settings
     microcontroller:
       ip: 10.42.0.146
@@ -42,33 +53,39 @@ setups:
   
   rig1:
     camera:
-      ip: 192.168.10.11
-      serial: N/A
+      ip: 192.168.1.11
+      switch_port: 1
+      serial: null
       settings: *default_camera_settings
     microcontroller:
-      ip: 192.168.10.101
+      ip: 192.168.1.101
+      switch_port: 2
       port: 80
     light:
       settings: *default_light_settings
   
   rig2:
     camera:
-      ip: 192.168.10.12
-      serial: N/A
+      ip: 192.168.1.12
+      switch_port: 3
+      serial: null
       settings: *default_camera_settings
     microcontroller:
-      ip: 192.168.10.102
+      switch_port: 4
+      ip: 192.168.1.102
       port: 80
     light:
       settings: *default_light_settings
   
   rig3:
     camera:
-      ip: 192.168.10.13
-      serial: N/A
+      ip: 192.168.1.13
+      switch_port: 5
+      serial: null
       settings: *default_camera_settings
     microcontroller:
-      ip: 192.168.10.103
+      ip: 192.168.1.103
+      switch_port: 6
       port: 80
     light:
       settings: *default_light_settings
