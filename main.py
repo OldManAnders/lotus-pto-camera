@@ -3,7 +3,7 @@ This script executes a series of image captures with a set of given camera param
 The lighting and camera parameters are called by the names specified in the config.yaml.
 To acquire from several rigs, this script should be executed for every camera setup
 '''
-import argparse, yaml, logging, traceback, sys, datetime, os
+import argparse, yaml, logging, traceback, sys, datetime, os, time
 from camera.camera_handler import CameraHandler
 from microcontroller.microcontroller_handler import MicrocontrollerHandler
 from utils.logging_config import configure_logging, get_logger, TELEMETRY
@@ -72,6 +72,8 @@ try:
             port_index=rig["camera"]["switch_port"],
             enabled=True)
         logger.debug("", extra={"event": "poe_control_success", "details": f"{result['switch_mac']}: port:{result['port']} state:{result['poe_mode']}"})
+        logger.debug("", extra={"event": "poe_camera_warmup", "details": "Waiting 20 seconds for camera to power on and initialize"})
+        time.sleep(20)
 except Exception as e:
     logger.error("", extra={"event": "poe_control_failure", "details": str(e)})
 
