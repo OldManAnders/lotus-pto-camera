@@ -18,13 +18,13 @@ DEFAULT:
       # Auto settings
       AutoTargetBrightness: 0.5   # Mellem 0.0 og 1.0
       AutoFunction: "MinimizeGain" # "MinimizeGain", eller "MinimizeExposureTime"
-      ExposureAuto: "Off"   # 'Off', 'Once', 'Continuous'
+      ExposureAuto: "Continuous"   # 'Off', 'Once', 'Continuous'
       AutoExposureTimeLowerLimit: 1.0
       AutoExposureTimeUpperLimit: 100000.0
       GainAuto: "Off"       # Off,' 'Once', 'Continuous'
       AutoGainLowerLimit: 0
       AutoGainUpperLimit: 24
-      BalanceWhiteAuto: "Once"   # Off,' 'Once', 'Continuous'
+      BalanceWhiteAuto: "Off"   # Off,' 'Once', 'Continuous'
   light_config: &default_light_settings
     light.1: 128 # Strength in 8bit values (0-255)
     light.2: 128 # Strength in 8bit values (0-255)
