@@ -26,9 +26,9 @@ DEFAULT:
       AutoGainUpperLimit: 24
       BalanceWhiteAuto: "Off"   # Off,' 'Once', 'Continuous'
   light_config: &default_light_settings
-    light.1: 128 # Strength in 8bit values (0-255)
-    light.2: 128 # Strength in 8bit values (0-255)
-    light.3: 128 # Strength in 8bit values (0-255
+    light.1: 100 # Strength in 8bit values (0-255)
+    light.2: 100 # Strength in 8bit values (0-255)
+    light.3: 100 # Strength in 8bit values (0-255
 
 network:
   camera_switch_mac: "58:d6:1f:7c:65:03"
@@ -139,10 +139,54 @@ light_configs:
 
   bright:
     <<: *default_light_settings
-    light.1: 255
-    light.2: 255
+    led1: 255
+    led2: 255
 
   dim: 
     <<: *default_light_settings
-    light.1: 90
-    light.2: 90
+    led1: 90
+    led2: 90
+    led3: 100
+
+  #Light testing configurations
+  demo_led1_full: 
+    <<: *default_light_settings
+    led1: 255
+    led2: 0
+    led3: 0
+  
+  demo_led2_full: 
+    <<: *default_light_settings
+    led1: 0
+    led2: 255
+    led3: 0
+
+  demo_led3_full: 
+    <<: *default_light_settings
+    led1: 255
+    led2: 0
+    led3: 0
+
+  demo_all: 
+    <<: *default_light_settings
+    led1: 100
+    led2: 100
+    led3: 100
+
+  demo_pair1: 
+    <<: *default_light_settings
+    led1: 175
+    led2: 175
+    led3: 0
+
+  demo_pair2: 
+    <<: *default_light_settings
+    led1: 175
+    led2: 0
+    led3: 175
+
+  demo_pair3: 
+    <<: *default_light_settings
+    led1: 0
+    led2: 175
+    led3: 175
