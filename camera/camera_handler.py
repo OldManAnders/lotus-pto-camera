@@ -102,7 +102,7 @@ class CameraHandler:
                 )
 
             if grabResult.GrabSucceeded():
-                img = grabResult
+                img = grabResult.GetArray()
                 #img = self.convert_to_bgr(img)
                 grabResult.Release()
                 return img
