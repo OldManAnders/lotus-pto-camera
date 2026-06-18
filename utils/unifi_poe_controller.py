@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import requests
 import time
 import urllib3
+import logging
 from utils.logging_config import get_logger
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -19,11 +20,11 @@ class UnifiConfig:
 class UnifiPoEController:
     def __init__(self, config: UnifiConfig):
         self.config = config
+        self.logger = get_logger(__name__, component="Unifi")
         self.session = requests.Session()
         self.session.verify = config.verify_ssl
         self._login()
         self.site = self._get_site()
-        self.logger = get_logger(__name__, component="Unifi")
         
 
     def _login(self):
