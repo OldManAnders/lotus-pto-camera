@@ -73,9 +73,9 @@ def get_logger(name: str, component: str = None) -> logging.LoggerAdapter:
                     kwargs["extra"] = dict(self.extra) if self.extra else {}
             return msg, kwargs
 
-        def telemetry(self, event: str, details=None):
+        def telemetry(self, msg, event: str, details=None):
             # Use the adapter's log method so `extra` is merged with adapter extra
-            self.log(TELEMETRY, "", extra={"event": event, "details": details})
+            self.log(TELEMETRY, msg, extra={"event": event, "details": details})
 
     return LoggerWithTelemetry(logger, {"component": component}, merge_extra=True)
 
