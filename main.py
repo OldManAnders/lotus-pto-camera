@@ -3,7 +3,7 @@ This script executes a series of image captures with a set of given camera param
 The lighting and camera parameters are called by the names specified in the config.yaml.
 To acquire from several rigs, this script should be executed for every camera setup
 '''
-import yaml, logging, traceback, sys, datetime, os, time
+import yaml, logging, traceback, sys, datetime, os, time, argparse
 from camera.camera_handler import CameraHandler
 from microcontroller.microcontroller_handler import MicrocontrollerHandler
 from utils.logging_config import configure_logging, get_logger, TELEMETRY
@@ -117,25 +117,26 @@ class CaptureController():
 
     def prepare_for_capture(self):
         if self.microcontroller_handler:
-            self.logger.debug("", extra={"event": "wiper", "details": "Wiping the lense before image capture"})
+            self.logger.debug("", extra={"event": "wiper", "details": "Wiping the lense before capturing"})
             self.microcontroller_handler.wipe()
         if self.camera_handler:
             self.logger.telemetry("",event="camera_temperature", details=self.camera_handler.camera.DeviceTemperature.Value)
             # Flush buffer
-            self.logger.debug("", event="camera_operations", details="Flushing camera framebuffer")
+            self.logger.debug("", extra={"event": "camera_operations", "details": "Flushing camera framebuffer"})
             for _ in range(1,6):
                 _ = self.camera_handler.capture_image()
-        
-def run_cli():
-    import argparse
+
+
+# RUN AS CLI
+if __name__ == "__main__":
     parser = argparse.ArgumentParser("LOTUS-PTO Camera Rig capture")
     parser.add_argument('rig', help="Choice of camera to capture from")
     parser.add_argument('--config', default="./config.yaml", type=str, help="path to main config file")
     parser.add_argument('-c', nargs=2, action='append', help="Provide the name of a camera config followed by the name of a lighting config [See available configs with --list_configs]")
-    parser.add_argument('--output_path', type=str, default="./captured_data/")
+    parser.add_argument('--output_path', type=str, default="/home/aau/lotus-data/")
     parser.add_argument('--disable_camera', action="store_true", default=False, help="Disable camera capture")
     parser.add_argument('--disable_microcontroller', action="store_true", default=False, help="Disable microcontroller calls")
-    parser.add_argument('--log_level', default="telemetry", help="Level of verbosity of the logger")
+    parser.add_argument('--log_level', default="debug", help="Level of verbosity of the logger")
     args = parser.parse_args()
 
     #Load config
@@ -154,7 +155,6 @@ def run_cli():
     
     try:
         cc.start_rig()
-
         cc.prepare_for_capture()
         if cc.camera_handler:
             cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)
@@ -189,6 +189,3 @@ def run_cli():
             cc.microcontroller_handler.logger.debug("", extra={"event": "lights", "details": "Setting lights off after capture"})
     finally:
         cc.power_off_camera()
-
-if __name__ == "__main__":
-    run_cli()

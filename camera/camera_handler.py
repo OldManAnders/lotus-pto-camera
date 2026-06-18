@@ -33,7 +33,7 @@ __PIXEL_FORMAT_MAP__ = {
 }
 
 class CameraHandler:
-    def __init__(self, config=None, ip=None, name="NA, NA", output_folder="./captured_images") -> None:
+    def __init__(self, config=None, ip=None, name="NA,NA", output_folder="./captured_images") -> None:
         # store output folder path
         self.output_folder = output_folder
         os.makedirs(self.output_folder, exist_ok=True)
@@ -73,12 +73,13 @@ class CameraHandler:
         PixelFormat = grab_result.PixelType
         return self.converter.Convert(grab_result).GetArray()
 
-    def save_image(self, img, cam_config_name=None,light_config_name=None):
-        timestamp = time.strftime("%Y%m%d-%H%M%S")
+    def save_image(self, img, cam_config_name=None,light_config_name=None, full_path=""):
         rig_name = self.name.split(",")[0]
-        filename = f"{timestamp}_{rig_name}_{cam_config_name}_{light_config_name}.png"
-        full_path = os.path.join(self.output_folder, filename)
-        cv2.imwrite(full_path, img)
+        filename = f"{time.strftime("%Y%m%d-%H%M%S")}_{rig_name}_{cam_config_name}_{light_config_name}.png"
+        if full_path == "":
+            full_path = os.path.join(self.output_folder, "images", f"{time.strftime("%Y-%m-%d")}")
+            os.makedirs(full_path, exist_ok=True)
+        cv2.imwrite(os.path.join(full_path, filename), img)
         self.logger.debug("", extra={"event": "image_saved", "details": f"Image saved to {full_path}"})
 
     def capture_image(self, cam_config_name="default", light_config_name="NA") -> None:
