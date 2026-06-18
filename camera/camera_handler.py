@@ -164,7 +164,7 @@ class CameraHandler:
             self.camera.OffsetX.Value = self.config["OffsetX"]
             self.camera.OffsetY.Value = self.config["OffsetY"]
             self.camera.PixelFormat.Value = self.config["PixelFormat"]
-            self.camera.BslColorSpace.Value = self.config["BslColorSpace"]
+            #self.camera.BslColorSpace.Value = self.config["BslColorSpace"]
             self.camera.LUTEnable.Value = self.config["LUTEnable"]
 
             # Image Capture settings
