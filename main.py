@@ -3,15 +3,11 @@ This script executes a series of image captures with a set of given camera param
 The lighting and camera parameters are called by the names specified in the config.yaml.
 To acquire from several rigs, this script should be executed for every camera setup
 '''
-import argparse, yaml, logging, traceback, sys, datetime, os, time
+import yaml, logging, traceback, sys, datetime, os, time
 from camera.camera_handler import CameraHandler
 from microcontroller.microcontroller_handler import MicrocontrollerHandler
 from utils.logging_config import configure_logging, get_logger, TELEMETRY
 from utils.unifi_poe_controller import UnifiConfig, UnifiPoEController
-
-__CONFIG__ = "./config.yaml"
-with open(__CONFIG__, 'r') as f:
-    __CONFIG__ = yaml.safe_load(f)
 
 __log_level_map__={
     "debug": logging.DEBUG,
@@ -22,182 +18,177 @@ __log_level_map__={
     "critical": logging.CRITICAL,
 }
 
-parser = argparse.ArgumentParser("LOTUS-PTO Camera Rig capture")
-parser.add_argument(dest='rig', help="Choice of camera to capture from", choices=__CONFIG__["setups"].keys())
-parser.add_argument('-c', nargs=2, action='append', help="Provide the name of a camera config followed by the name of a lighting config [See available configs with --list_configs]")
-parser.add_argument('--list_configs', action='store_true', help="List all camera and lighting configs by name")
-parser.add_argument('--output_path', type=str, default="./captured_data/")
-parser.add_argument('--disable_camera', action="store_true", default=False, help="Disable camera capture")
-parser.add_argument('--disable_microcontroller', action="store_true", default=False, help="Disable microcontroller calls")
-parser.add_argument('--log_level', default="telemetry", choices=__log_level_map__.keys(), help="Level of verbosity of the logger")
-args = parser.parse_args()
+class CaptureController():
+    def __init__(self,
+                 rig,
+                 config,
+                 enable_camera = True,
+                 enable_microcontroller = True,
+                 output_path = "./",
+                 log_level = "telemetry"
+                 ):
+        
+        # Establish logger
+        self.set_log_level(log_level)
+        self.logger = get_logger(name="main", component=rig)
+        self.logger.debug("", extra={"event": "logger_initialization", "details": f"Setting log level to '{log_level}' "})
+        
+        # Store internal variables
+        self.name = rig
+        self.output_path = output_path
+        self.config = config
+        self.enable_camera = enable_camera
+        self.enable_microcontroller = enable_microcontroller
+        self.rig = self.get_subconfig("setups")[self.name]
 
-# Setup centralized logging
-configure_logging(level=__log_level_map__[args.log_level])
-logger = get_logger("server.main", component=args.rig)
-logger.debug("", extra={"event": "logging", "details": "logging configured with level " + args.log_level})
+        # Unifi API
+        self.unifi = self.setup_unifi_api(self.get_subconfig("network"))
 
-if args.list_configs:
-    print("List of available camera configs:")
-    for cam_config in list(__CONFIG__["camera_configs"].keys()):
-        print(cam_config)
-    print("List of available lighting configs:")
-    for lit_config in list(__CONFIG__["light_configs"].keys()):
-        print(lit_config)
+    def setup_unifi_api(self, network_conf):
+        self.logger.debug("", extra={"event": "unifi_initialization", "details": f"Establishing connection to Unifi controller at {network_conf['unifi']['host']}"})
+        try:
+            return UnifiPoEController(UnifiConfig(**network_conf["unifi"]))
+        except Exception as e:
+            self.logger.error("", extra={"event": "unifi_initialization_failure", "details": str(e)})
 
-# Get setup specific config
-rig = __CONFIG__["setups"][args.rig]
-logger.debug("", extra={"event": "initialization", "details": f"Loaded config for rig {args.rig}"})
+    def set_log_level(self, log_level):
+        ll_map={
+            "debug": logging.DEBUG,
+            "telemetry": TELEMETRY,
+            "info": logging.INFO,
+            "warning": logging.WARNING,
+            "error": logging.ERROR,
+            "critical": logging.CRITICAL,
+        }
+        configure_logging(level=ll_map[log_level])
 
-# Creating daily folder
-today = datetime.date.today().strftime("%Y-%m-%d")
-image_output_path = os.path.join(args.output_path, "images", today)
-os.makedirs(image_output_path, exist_ok=True)
-logger.debug("", extra={"event": "output", "details": f"Images will be saved to {image_output_path}"})
+    def start_rig(self):
+        # Initialize camera_handler
+        try:
+            self.power_on_camera()
+            self.camera_handler = CameraHandler(ip=self.rig["camera"]["ip"], name=f"{self.name},Camera", output_folder=self.output_path) if self.enable_camera else None
+            self.microcontroller_handler =  MicrocontrollerHandler(ip=self.rig["microcontroller"]["ip"], port=self.rig["microcontroller"]["port"], name=f"{self.name},Microcontroller") if self.enable_microcontroller else None
+        except Exception as e:
+                err = traceback.format_exc().replace("\n", "|")
+                self.logger.error("", extra={"event": "exception", "details": err})
+                self.logger.error("", extra={"event": "abort", "details": "Exiting script via sys.exit()"})
+                sys.exit()
 
+    def get_subconfig(self, subconfig):
+        subconfig = subconfig.lower()
+        if subconfig == "setups":
+            return self.config["setups"]
+        elif subconfig == "network":
+            return self.config["network"]
+        elif subconfig == "camera":
+            return self.config["camera_configs"]
+        elif subconfig == "lights":
+            return self.config["light_configs"]
+        else:
+            self.logger.warning("", extra={"event": "config loading", "details": f"Attempted to retrieve unknown subconfig: '{subconfig}'."})
+            return {}
 
-#Initiate Unifi PoE controller
-try:
-    logger.debug("", extra={"event": "unifi", "details": f"Establishing connection to Unifi controller at {__CONFIG__['network']['unifi']['host']}"})
-    unifi_api = UnifiPoEController(UnifiConfig(**__CONFIG__["network"]["unifi"]))
-except Exception as e:
-    logger.error("", extra={"event": "unifi_initialization_failure", "details": str(e)})
+    def power_on_camera(self):
+        # Power on PoE port
+        try:
+            self.logger.info("", extra={"event": "poe_control", "details": f"Powering ON PoE for camera at switch {self.get_subconfig("network")["camera_switch_mac"]} port {self.rig['camera']['switch_port']}"})
+            result = self.unifi.set_poe(
+                switch_mac=self.get_subconfig("network")["camera_switch_mac"],
+                port_index=self.rig["camera"]["switch_port"],
+                enabled=True)
+            if result["success"]:
+                self.logger.debug("", extra={"event": "poe_camera_warmup", "details": "Waiting 20 seconds for camera to power on and initialize"})
+                time.sleep(20)
+            else:
+                self.logger.error
+        except Exception as e:
+            self.logger.error("", extra={"event": "poe_control_failure", "details": str(e)})
+        
+    def power_off_camera(self):
+        try:
+            self.logger.info("", extra={"event": "poe_control", "details": f"Powering off PoE for camera at switch {self.get_subconfig("network")["camera_switch_mac"]} port {self.rig['camera']['switch_port']}"})
+            result = self.unifi.set_poe(
+                switch_mac=self.get_subconfig("network")["camera_switch_mac"],
+                port_index=self.rig["camera"]["switch_port"],
+                enabled=False)
+            self.logger.debug("", extra={"event": "poe_control_success", "details": f"{result['switch_mac']}: port:{result['port']} state:{result['poe_mode']}"})
+        except Exception as e:
+            self.logger.error("", extra={"event": "poe_control_failure", "details": str(e)})
 
-#Power on PoE ports of devices
-try:
-    if not args.disable_camera and rig != "Any":
-        logger.info("", extra={"event": "poe_control", "details": f"Powering on PoE for camera at switch {__CONFIG__['network']['camera_switch_mac']} port {rig['camera']['switch_port']}"})
-        result = unifi_api.set_poe(
-            switch_mac=__CONFIG__["network"]["camera_switch_mac"],
-            port_index=rig["camera"]["switch_port"],
-            enabled=True)
-        logger.debug("", extra={"event": "poe_control_success", "details": f"{result['switch_mac']}: port:{result['port']} state:{result['poe_mode']}"})
-        logger.debug("", extra={"event": "poe_camera_warmup", "details": "Waiting 20 seconds for camera to power on and initialize"})
-        time.sleep(20)
-except Exception as e:
-    logger.error("", extra={"event": "poe_control_failure", "details": str(e)})
+    def prepare_for_capture(self):
+        if self.microcontroller_handler:
+            self.logger.debug("", extra={"event": "wiper", "details": "Wiping the lense before image capture"})
+            self.microcontroller_handler.wipe()
+        if self.camera_handler:
+            self.logger.telemetry("",event="camera_temperature", details=self.camera_handler.camera.DeviceTemperature.Value)
+            # Flush buffer
+            self.logger.debug("", event="camera_operations", details="Flushing camera framebuffer")
+            for _ in range(1,6):
+                _ = self.camera_handler.capture_image()
+        
+def run_cli():
+    import argparse
+    parser = argparse.ArgumentParser("LOTUS-PTO Camera Rig capture")
+    parser.add_argument('rig', help="Choice of camera to capture from")
+    parser.add_argument('--config', default="./config.yaml", type=str, help="path to main config file")
+    parser.add_argument('-c', nargs=2, action='append', help="Provide the name of a camera config followed by the name of a lighting config [See available configs with --list_configs]")
+    parser.add_argument('--output_path', type=str, default="./captured_data/")
+    parser.add_argument('--disable_camera', action="store_true", default=False, help="Disable camera capture")
+    parser.add_argument('--disable_microcontroller', action="store_true", default=False, help="Disable microcontroller calls")
+    parser.add_argument('--log_level', default="telemetry", help="Level of verbosity of the logger")
+    args = parser.parse_args()
 
-#Initiate camera controller
-try:
-    if args.disable_camera:
-        camera_handler = None
-        logger.warning("", extra={"event": "module_disabled", "details": "Camera module disabled via CLI argument"})
-    else:
-        # Initialize camera handler
-        camera_handler = CameraHandler(ip=rig["camera"]["ip"], name=f"{args.rig},Camera", output_folder=image_output_path)
-        #camera_handler.wake() #Ensure camera is awake and ready for capture
-except Exception as e:
-    logger.error("", extra={"event": "camera_initialization_failure", "details": str(e)})
-    #Format stacktraces into a single line with | markers to indicate linebreaks
-    err = traceback.format_exc().replace("\n", "|")
-    logger.error("", extra={"event": "exception", "details": err})
-    logger.error("", extra={"event": "abort", "details": "Exiting script via sys.exit()"})
-    sys.exit()
+    #Load config
+    with open(args.config, 'r') as f:
+        config = yaml.safe_load(f)
 
-#Initiate microcontroller controller
-try: 
-    if args.disable_microcontroller:
-        micro_controller = None   
-        logger.warning("", extra={"event": "module_disabled", "details": "Micro controller module disabled via CLI argument"})
-    else:
-        micro_controller = MicrocontrollerHandler(ip=rig["microcontroller"]["ip"], port=rig["microcontroller"]["port"], name=f"{args.rig},Microcontroller")
-except:
-    #Format stacktraces into a single line with | markers to indicate linebreaks
-    err = traceback.format_exc().replace("\n", "|")
-    logger.error("", extra={"event": "exception", "details": err})
-    logger.error("", extra={"event": "abort", "details": "Exiting script via sys.exit()"})
-    sys.exit()
-
-if args.c is None:
-    args.c = [["default", "default"]]
-    logger.warning("", extra={"event": "config_parsing", "details":"No configs provided"})
-
-# Pre capture telemetry
-if micro_controller:
-    #Temperature sensor
-    resp = micro_controller.get_values(["sensor.temperature"])
-    if resp["success"]:
-        for key, val in resp["data"].items():
-            logger.telemetry(event=key, details=val)
-
-    #Pressure sensor
-    resp = micro_controller.get_values(["sensor.pressure"])
-    if resp["success"]:
-        for key, val in resp["data"].items():
-            logger.telemetry(event=key, details=val)
-
-if camera_handler:
-    logger.telemetry(event="camera_temperature", details=camera_handler.camera.DeviceTemperature.Value)
-    for _ in range(1,6):
-        camera_handler.capture_image() # Capture a few images to warm up the camera and stabilize temperature before the actual capture sequence
-
-try:
-    # Log the amount of configs 
-    logger.debug("", extra={"event": "configs_count", "details": f"Number of configs: {len(args.c)}"})
+    # Initialize capture object
+    cc = CaptureController(
+        rig = args.rig,
+        config = config,
+        enable_camera = not args.disable_camera,
+        enable_microcontroller = not args.disable_microcontroller,
+        log_level = args.log_level,
+        output_path=args.output_path
+        )
     
-    #Wipe the lense
-    if micro_controller:
-        logger.debug("", extra={"event": "wiper", "details": "Wiping the lense before image capture"})
-        micro_controller.send_command("wipe")
+    try:
+        cc.start_rig()
 
-    # Iterate over provided camera and lighting configurations
-    for c in args.c:
-        cam_config_name = c[0]
-        light_config_name = c[1]
-        logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"})
+        cc.prepare_for_capture()
+        if cc.camera_handler:
+            cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)
 
-        if micro_controller:
-            #Initiate light
-            micro_controller.set_values(__CONFIG__["light_configs"][light_config_name])
-        
-        if camera_handler:
-            #Set camera settings
-            camera_handler.load_config(__CONFIG__["camera_configs"][cam_config_name])
-            #Capture image
-            img = camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
-            camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
+        # Setup centralized logging
+        if args.c is None:
+            args.c = [["default", "default"]]
+            cc.logger.warning("", extra={"event": "config_parsing", "details":"No configs provided"})
 
-    # Post capture telemetry
-    if micro_controller:
-        #Temperature sensor
-        resp = micro_controller.get_values(["sensor.temperature"])
-        if resp["success"]:
-            for key, val in resp["data"].items():
-                logger.telemetry(event=key, details=val)
-        
-        #Pressure sensor
-        resp = micro_controller.get_values(["sensor.pressure"])
-        if resp["success"]:
-            for key, val in resp["data"].items():
-                logger.telemetry(event=key, details=val)
+        # Iterate over provided camera and lighting configurations
+        for c in args.c:
+            cam_config_name = c[0]
+            light_config_name = c[1]
+            cc.logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"})
+            if cc.microcontroller_handler:
+                #Initiate light
+                response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
+            if cc.camera_handler:
+                #Set camera settings
+                cc.camera_handler.load_config(cc.get_subconfig("camera")[cam_config_name])
+                #Capture image
+                img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
+                cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
 
-    if camera_handler:
-        logger.telemetry(event="camera_temperature", details=camera_handler.camera.DeviceTemperature.Value)
+        #Close out
+        if cc.camera_handler:
+            cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)
+            cc.camera_handler.close()
+        if cc.microcontroller_handler:
+            #Turn off lights
+            cc.microcontroller_handler.set_leds(0,0,0)
+            cc.microcontroller_handler.logger.debug("", extra={"event": "lights", "details": "Setting lights off after capture"})
+    finally:
+        cc.power_off_camera()
 
-    #Close out
-    if micro_controller:
-        #Turn off lights
-        micro_controller.send_command("lightOff")
-        logger.debug("", extra={"event": "lights", "details": "Setting lights off after capture"})
-
-    if camera_handler:
-        #camera_handler.sleep() #Put camera to sleep to save power between captures
-        camera_handler.close()
-
-except:
-    #Format stacktraces into a single line with | markers to indicate linebreaks
-    err = traceback.format_exc().replace("\n", "|")
-    logger.error("", extra={"event": "exception", "details": {"trace": err}})
-
-#Power off PoE ports of devices
-try:
-    if not args.disable_camera and rig != "Any":
-        logger.info("", extra={"event": "poe_control", "details": f"Powering off PoE for camera at switch {__CONFIG__['network']['camera_switch_mac']} port {rig['camera']['switch_port']}"})
-        result = unifi_api.set_poe(
-            switch_mac=str(__CONFIG__["network"]["camera_switch_mac"]),
-            port_index=rig["camera"]["switch_port"],
-            enabled=False)
-        logger.debug("", extra={"event": "poe_control_success", "details": f"{result['switch_mac']}: port:{result['port']} state:{result['poe_mode']}"})
-except Exception as e:
-    logger.error("", extra={"event": "poe_control_failure", "details": str(e)})
-
+if __name__ == "__main__":
+    run_cli()
