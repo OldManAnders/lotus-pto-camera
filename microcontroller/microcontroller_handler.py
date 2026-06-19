@@ -30,6 +30,7 @@ class MicrocontrollerHandler:
                 timeout=self.timeout if timeout is None else timeout
             )
             res.raise_for_status()
+            self.logger.debug("", extra={"event": "get_request", "details": f"Called get with {" ".join([f"{k}:{v}" for k,v in params.items()])}"})            
             return res.json()
         except requests.RequestException as e:
             self.logger.error("", extra={"event": "http_get_failed", "details": f"{str(e)}"})

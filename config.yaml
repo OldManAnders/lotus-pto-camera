@@ -139,8 +139,8 @@ light_configs:
 
   bright:
     <<: *default_light_settings
-    led1: 255
-    led2: 255
+    led1: 100
+    led2: 100
 
   dim: 
     <<: *default_light_settings
