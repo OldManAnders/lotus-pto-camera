@@ -37,7 +37,7 @@ PYTHON_BIN="./venv/bin/python3"
 # Keep retrying until
 until [ $count -ge $MAX_RETRIES ]; do
     # Image acquisition begins
-    $PYTHON_BIN main.py rig1 --output_path $OUTPUTDIR -c prototypeLongExp bright --disable_microcontroller --log_level debug
+    $PYTHON_BIN main.py rig1 --output_path $OUTPUTDIR -c prototypeLongExp bright --log_level debug
     break
 
     count=$((count+1))
