@@ -22,7 +22,7 @@ class CameraGuiApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Camera & Light Control Panel")
-        self.root.geometry("560x780")
+        self.root.geometry("560x980")
         self.root.resizable(False, False)
 
         self.config_path = "./config.yaml"
@@ -346,7 +346,7 @@ class CameraGuiApp:
                 enable_camera=self.enable_camera_var.get(),
                 enable_microcontroller=self.enable_mc_var.get(),
                 output_path=output_folder,
-                log_level="info",
+                log_level="debug",
             )
 
             self.log("Starting rig (powering camera, connecting handlers)...")
@@ -383,6 +383,7 @@ class CameraGuiApp:
                     img = self.cc.camera_handler.capture_image(
                         cam_config_name=cam_config_name, light_config_name=light_config_name)
 
+                    print(img.shape)
                     self.log(f"Saving image to {output_folder}...")
                     self.cc.camera_handler.save_image(
                         img, cam_config_name=f"{session_name}_{cam_config_name}",

@@ -5,7 +5,7 @@ DEFAULT:
       Height: 3548
       OffsetX: 0 
       OffsetY: 4
-      BslColorSpace: "sRGB"
+      BslColorSpace: "sRgb"
       PixelFormat: "BayerRG8"
       LUTEnable: True
       # Image Capture settings
@@ -163,9 +163,9 @@ light_configs:
 
   demo_led3_full: 
     <<: *default_light_settings
-    led1: 255
+    led1: 0
     led2: 0
-    led3: 0
+    led3: 255
 
   demo_all: 
     <<: *default_light_settings
