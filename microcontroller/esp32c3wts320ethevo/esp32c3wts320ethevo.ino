@@ -30,13 +30,8 @@ void setLedValue(int index, int value) {
 
 // Run a full forward+backward wiper sweep, blocking until it completes.
 void doWiperSweep() {
-  if (wiperActive) return;
-  wiperActive = true;
   Serial.println("Wiper started");
-
   int range = WIPER_MAX - WIPER_MIN;
-
-  // phase 0 = forward (MIN -> MAX), phase 1 = backward (MAX -> MIN)
   for (int phase = 0; phase < 2; phase++) {
     for (int step = 0; step <= WIPER_STEPS; step++) {
       float t = (float)step / WIPER_STEPS;

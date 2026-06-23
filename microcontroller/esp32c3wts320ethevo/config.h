@@ -15,11 +15,11 @@
 
 // ===== Network configuration =====
 #define USE_STATIC_IP true
-static const IPAddress STATIC_IP(192, 168, 1, 30);
+static const IPAddress STATIC_IP(192, 168, 1, 101);
 static const IPAddress GATEWAY(192, 168, 1, 1);
 static const IPAddress SUBNET(255, 255, 255, 0);
-static const IPAddress DNS(192, 168, 0, 1);
-#define ETH_HOSTNAME "eth01-evo"
+static const IPAddress DNS(192, 168, 1, 1);
+#define ETH_HOSTNAME "rig1_microcontroller"
 #define HTTP_PORT 80
 
 // Timeout in milliseconds before returning to zero
@@ -30,9 +30,9 @@ static const IPAddress DNS(192, 168, 0, 1);
 
 // ===== Wiper settings =====
 #define WIPER_MIN  0
-#define WIPER_MAX  180
+#define WIPER_MAX  100
 #define WIPER_DELAY_MS 20
-#define WIPER_STEPS 1
+#define WIPER_STEPS 100
 
 // ===== LED servo pwm frequency mapping =====
 #define LED_MIN 0
