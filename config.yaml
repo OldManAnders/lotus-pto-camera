@@ -9,7 +9,7 @@ DEFAULT:
       PixelFormat: "BayerRG8"
       LUTEnable: True
       # Image Capture settings
-      ExposureTime: 15000.0
+      ExposureTime: 150000.0
       Gain: 0.0
       gamma: 1.0
       # Video settings
@@ -18,13 +18,13 @@ DEFAULT:
       # Auto settings
       AutoTargetBrightness: 0.5   # Mellem 0.0 og 1.0
       AutoFunction: "MinimizeGain" # "MinimizeGain", eller "MinimizeExposureTime"
-      ExposureAuto: "Continuous"   # 'Off', 'Once', 'Continuous'
+      ExposureAuto: "Off"   # 'Off', 'Once', 'Continuous'
       AutoExposureTimeLowerLimit: 1.0
-      AutoExposureTimeUpperLimit: 100000.0
+      AutoExposureTimeUpperLimit: 1000000.0
       GainAuto: "Off"       # Off,' 'Once', 'Continuous'
       AutoGainLowerLimit: 0
       AutoGainUpperLimit: 24
-      BalanceWhiteAuto: "Off"   # Off,' 'Once', 'Continuous'
+      BalanceWhiteAuto: "Continuous"   # Off,' 'Once', 'Continuous'
   light_config: &default_light_settings
     led1: 100 # Strength in 8bit values (0-255)
     led2: 100 # Strength in 8bit values (0-255)
@@ -141,37 +141,38 @@ light_configs:
     <<: *default_light_settings
     led1: 100
     led2: 100
+    led3: 100
 
   dim: 
     <<: *default_light_settings
     led1: 90
     led2: 90
-    led3: 100
+    led3: 90
 
   #Light testing configurations
   demo_led1_full: 
     <<: *default_light_settings
-    led1: 255
+    led1: 175
     led2: 0
     led3: 0
   
   demo_led2_full: 
     <<: *default_light_settings
     led1: 0
-    led2: 255
+    led2: 175
     led3: 0
 
   demo_led3_full: 
     <<: *default_light_settings
     led1: 0
     led2: 0
-    led3: 255
+    led3: 175
 
   demo_all: 
     <<: *default_light_settings
-    led1: 100
-    led2: 100
-    led3: 100
+    led1: 175
+    led2: 175
+    led3: 175
 
   demo_pair1: 
     <<: *default_light_settings

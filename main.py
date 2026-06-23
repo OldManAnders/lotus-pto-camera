@@ -98,7 +98,7 @@ class CaptureController():
                 enabled=True)
             if result["success"]:
                 self.logger.debug("", extra={"event": "poe_camera_warmup", "details": "Waiting 20 seconds for camera to power on and initialize"})
-                time.sleep(20)
+                time.sleep(10)
             else:
                 self.logger.error
         except Exception as e:
@@ -106,7 +106,7 @@ class CaptureController():
         
     def power_off_camera(self):
         try:
-            self.logger.info("", extra={"event": "poe_control", "details": f"Powering off PoE for camera at switch {self.get_subconfig("network")["camera_switch_mac"]} port {self.rig['camera']['switch_port']}"})
+            self.logger.info("", extra={"event": "poe_control", "details": f"Powering OFF PoE for camera at switch {self.get_subconfig("network")["camera_switch_mac"]} port {self.rig['camera']['switch_port']}"})
             result = self.unifi.set_poe(
                 switch_mac=self.get_subconfig("network")["camera_switch_mac"],
                 port_index=self.rig["camera"]["switch_port"],
@@ -123,7 +123,7 @@ class CaptureController():
             self.logger.telemetry("",event="camera_temperature", details=self.camera_handler.camera.DeviceTemperature.Value)
             # Flush buffer
             self.logger.debug("", extra={"event": "camera_operations", "details": "Flushing camera framebuffer"})
-            for _ in range(1,6):
+            for _ in range(10):
                 _ = self.camera_handler.capture_image()
 
 
@@ -137,6 +137,7 @@ if __name__ == "__main__":
     parser.add_argument('--disable_camera', action="store_true", default=False, help="Disable camera capture")
     parser.add_argument('--disable_microcontroller', action="store_true", default=False, help="Disable microcontroller calls")
     parser.add_argument('--log_level', default="debug", help="Level of verbosity of the logger")
+    parser.add_argument('--capture_delay', default=1, type=int, help="Delay between captures")
     args = parser.parse_args()
 
     #Load config
@@ -154,10 +155,19 @@ if __name__ == "__main__":
         )
     
     try:
+        # Start
         cc.start_rig()
-        cc.prepare_for_capture()
+
+        # Prepare capture
+        if cc.microcontroller_handler:
+            response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")["demo_pair1"])
+            cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
         if cc.camera_handler:
+            cc.camera_handler.load_config(cc.get_subconfig("camera")["default"])
             cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)
+            cc.camera_handler.logger.debug("", extra={"event": "camera_operations", "details": "Flushing camera framebuffer"})
+            for _ in range(10):
+                _ = cc.camera_handler.capture_image()
 
         # Setup centralized logging
         if args.c is None:
@@ -168,18 +178,19 @@ if __name__ == "__main__":
         for c in args.c:
             cam_config_name = c[0]
             light_config_name = c[1]
-            cc.logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"})
+            cc.logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"}) 
             if cc.microcontroller_handler:
                 #Initiate light
                 response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
-                cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response["led1"]} L2-{["led2"]} L3-{["led3"]}"})
+                cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
             if cc.camera_handler:
                 #Set camera settings
-                cc.camera_handler.load_config(cc.get_subconfig("camera")[cam_config_name])
-                #Capture image
+                time.sleep(1)
                 img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
                 cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
-
+            if args.capture_delay>0:
+                time.sleep(args.capture_delay)
+               
         #Close out
         if cc.camera_handler:
             cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)

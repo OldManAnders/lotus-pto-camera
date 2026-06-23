@@ -97,6 +97,7 @@ class CameraHandler:
         try:
             with self.camera_mutex:
                 self.camera.StartGrabbingMax(1)
+                #self.camera.StartGrabbing()
 
                 grabResult = self.camera.RetrieveResult(
                     5000, pylon.TimeoutHandling_ThrowException
