@@ -160,7 +160,7 @@ if __name__ == "__main__":
 
         # Prepare capture
         if cc.microcontroller_handler:
-            response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")["demo_pair1"])
+            response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")["demoPair1"])
             cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
         if cc.camera_handler:
             cc.camera_handler.load_config(cc.get_subconfig("camera")["default"])
