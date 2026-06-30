@@ -184,10 +184,12 @@ if __name__ == "__main__":
                 cc.camera_handler.load_config(cc.get_subconfig("camera")[cam_config_name])
                 #Flush buffer and let auto-settings converge
                 for _ in range(3):
+                    cc.logger.debug("", extra={"event": "lights_set", "details": f"Auto-settings pass  L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
                     if cc.microcontroller_handler:
                         cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
-                    for _ in range(10):
+                    for _ in range(5):
                         _ = cc.camera_handler.capture_image(cam_config_name="flush", light_config_name=light_config_name)
+                response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
                 #Capture image
                 img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
                 cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
