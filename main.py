@@ -27,12 +27,12 @@ class CaptureController():
                  output_path = "./",
                  log_level = "telemetry"
                  ):
-        
+
         # Establish logger
         self.set_log_level(log_level)
         self.logger = get_logger(name="main", component=rig)
         self.logger.debug("", extra={"event": "logger_initialization", "details": f"Setting log level to '{log_level}' "})
-        
+
         # Store internal variables
         self.name = rig
         self.output_path = output_path
@@ -103,7 +103,7 @@ class CaptureController():
                 self.logger.error
         except Exception as e:
             self.logger.error("", extra={"event": "poe_control_failure", "details": str(e)})
-        
+
     def power_off_camera(self):
         try:
             self.logger.info("", extra={"event": "poe_control", "details": f"Powering OFF PoE for camera at switch {self.get_subconfig("network")["camera_switch_mac"]} port {self.rig['camera']['switch_port']}"})
@@ -163,11 +163,7 @@ if __name__ == "__main__":
             response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")["demoPair1"])
             cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
         if cc.camera_handler:
-            cc.camera_handler.load_config(cc.get_subconfig("camera")["default"])
             cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)
-            cc.camera_handler.logger.debug("", extra={"event": "camera_operations", "details": "Flushing camera framebuffer"})
-            for _ in range(10):
-                _ = cc.camera_handler.capture_image()
 
         # Setup centralized logging
         if args.c is None:
@@ -185,7 +181,14 @@ if __name__ == "__main__":
                 cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
             if cc.camera_handler:
                 #Set camera settings
-                time.sleep(1)
+                cc.camera_handler.load_config(cc.get_subconfig("camera")[cam_config_name])
+                #Flush buffer and let auto-settings converge
+                for _ in range(3):
+                    if cc.microcontroller_handler:
+                        cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
+                    for _ in range(10):
+                        _ = cc.camera_handler.capture_image(cam_config_name="flush", light_config_name=light_config_name)
+                #Capture image
                 img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
                 cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
             if args.capture_delay>0:

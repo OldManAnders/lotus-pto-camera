@@ -41,10 +41,7 @@ until [ $count -ge $MAX_RETRIES ]; do
     -c default demoLed1Full \
     -c default demoLed2Full \
     -c default demoLed3Full \
-    -c default demoAll \
-    -c default demoPair1 \
-    -c default demoPair2 \
-    -c default demoPair3
+    -c default demoAll
     break
 
     count=$((count+1))
