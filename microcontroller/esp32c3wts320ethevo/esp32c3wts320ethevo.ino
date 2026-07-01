@@ -88,6 +88,11 @@ void handleRoot() {
   server.send(200, "text/plain", String(ETH_HOSTNAME) + "\n==== GET====\n/status\n/ping\n==== POST ====\n/leds\n/wiper\n/reset");
 }
 
+void handleReboot() {
+  server.send(200, "application/json", "{\"status\":\"Rebooting...\"}");
+  ESP.restart();
+}
+
 void handleStatus() {
   String body = "{";
   body += "\"led1\":" + String(ledValues[0]) + ",";
@@ -244,6 +249,7 @@ void setup() {
   server.on("/leds", HTTP_POST, handleLeds);
   server.on("/wiper", HTTP_POST, handleWiper);
   server.on("/reset", HTTP_POST, handleReset);
+  server.on("/reboot", HTTP_POST, handleReboot);
   server.onNotFound([]() {
     server.send(404, "application/json", "{\"error\":\"not_found\"}");
   });
