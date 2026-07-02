@@ -149,13 +149,18 @@ light_configs:
     led2: 90
     led3: 90
 
-  #Light testing configurations
-  demoLed1Full: 
+  lightsOff: 
+    <<: *default_light_settings
+    led1: 0
+    led2: 0
+    led3: 0
+
+  demoLed1Full:
     <<: *default_light_settings
     led1: 255
     led2: 0
     led3: 0
-  
+
   demoLed2Full: 
     <<: *default_light_settings
     led1: 0
