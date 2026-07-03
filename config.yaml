@@ -95,59 +95,22 @@ camera_configs:
   default:
     <<: *default_camera_settings
 
-  prototypeLongExp:
+  40pAutoExp:
     <<: *default_camera_settings
-    ExposureTime: 25000.0
-    ExposureAuto: "Off"
-    auto_gain: "Off"
+    AutoTargetBrightness: 0.4
 
-  prototypeShortExp:
+  30pAutoExp:
     <<: *default_camera_settings
-    ExposureTime: 12500.0
-    gain: 1.0
-    ExposureAuto: "Off"
-    auto_gain: "Off"
+    AutoTargetBrightness: 0.3
 
-  action:
+  20pAutoExp:
     <<: *default_camera_settings
-    ExposureTime: 3500.0
-    ExposureAuto: "Off"
-    auto_gain: "Off"
-    auto_gain_upper_limit: 18
-
-  balance:
-    <<: *default_camera_settings
-    ExposureTime: 15000.0
-    gain: 3.5
-    ExposureAuto: "Off"
-    auto_gain: "Off"
-    AcquisitionFrameRate: 24
-
-  longExposure:
-    <<: *default_camera_settings
-    ExposureTime: 75000.0
-    gain: 1.0
-    AutoTargetBrightness: 0.65
-    ExposureAuto: "Off"
-    auto_gain: "Off"
-    AcquisitionFrameRate: 10
+    AutoTargetBrightness: 0.2
 
 # Named lighting configuration presets
 light_configs:
   default:
     <<: *default_light_settings
-
-  bright:
-    <<: *default_light_settings
-    led1: 100
-    led2: 100
-    led3: 100
-
-  dim: 
-    <<: *default_light_settings
-    led1: 90
-    led2: 90
-    led3: 90
 
   lightsOff: 
     <<: *default_light_settings

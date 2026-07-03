@@ -42,7 +42,12 @@ until [ $count -ge $MAX_RETRIES ]; do
     -c default demoLed2Full \
     -c default demoLed3Full \
     -c default demoAll \
-    -c default lightsOff
+    -c 20pAutoExp demoLed1Full \
+    -c 20pAutoExp demoLed2Full \
+    -c 20pAutoExp demoLed3Full \
+    -c 20pAutoExp demoAll \
+    -c default lightsOff \
+    -c 20pAutoExp lightsOff
     break
 
     count=$((count+1))

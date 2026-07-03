@@ -194,16 +194,6 @@ if __name__ == "__main__":
                 exp_time = cc.camera_handler.camera.ExposureTime.Value
                 img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
                 cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
-                #Capture under exposed images
-                cc.camera_handler.camera.ExposureAuto.Value = "Off"
-                #Underexpose 25%
-                cc.camera_handler.camera.ExposureTime.Value = int(exp_time*0.75)
-                img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
-                cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name+"75")
-                #Underexpose 50%
-                cc.camera_handler.camera.ExposureTime.Value = int(exp_time*0.5)
-                img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
-                cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name+"50")
             if args.capture_delay>0:
                 time.sleep(args.capture_delay)
         #Close out
