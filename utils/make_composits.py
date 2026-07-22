@@ -128,7 +128,7 @@ def assign_to_bins(records: List[ImageRecord], bins: List[TimeBin]) -> List[Time
                 break
     return bins
 
-def build_bins(records: List[ImageRecord], interval: int) -> List[TimeBin]:
+def build_bins(records: List[ImageRecord], interval: int, width:int) -> List[TimeBin]:
     if interval <= 1:
         raise ValueError("capture_interval must be > 0")
     #Fetch all timestamps
@@ -139,8 +139,8 @@ def build_bins(records: List[ImageRecord], interval: int) -> List[TimeBin]:
     bins = []
     n_bins = int((end - start) / timedelta(minutes=interval))
     for i in range(n_bins):
-        bin_start = start + timedelta(minutes=i * interval)
-        bin_end = bin_start + timedelta(minutes=interval)
+        bin_start = start + timedelta(minutes=i*interval)
+        bin_end = bin_start + timedelta(minutes=width)
         bins.append(TimeBin(records=[],start=bin_start, end=bin_end))
     return bins
 
@@ -168,7 +168,8 @@ if __name__ == "__main__":
     parser.add_argument("input_dir", type=Path, help="Folder containing source images (assumes final folder name has a timestamp)")
     parser.add_argument("output_dir", type=Path, help="Folder to write composites to")
     parser.add_argument("camera_rig", type=str, help="Camera rig identifier to filter for")
-    parser.add_argument("--interval_minutes", type=float, default=15.0, help="Bin width / interval at which image capture repeats (default: 15)")
+    parser.add_argument("--bin_freq", type=int, default=15, help="How frequent to establish each bin (in minutes)")
+    parser.add_argument("--bin_width", type=int, default=15, help="Width of each bin (in minutes)")
     parser.add_argument("--camera_configs", type=str, nargs="+", default=None, help="Restrict to one or more camera configs, omit to include all camera configs.")
     parser.add_argument("--lighting_configs", type=str, nargs="+", default=None, help="Restrict to one or more lighting configs, omit to include all lighting configs.")
     parser.add_argument("--filter_options", action='store_true', help="Display all available filter options")
@@ -201,7 +202,7 @@ if __name__ == "__main__":
     logger.info(f"Found {len(all_records)} images total, {len(filtered_records)} matching rig '{args.camera_rig}' and filter criterias '{','.join(args.camera_configs) if args.camera_configs else 'any'}' and '{','.join(args.lighting_configs) if args.lighting_configs else 'any'}'")
 
     #Create interval bins and assign images
-    bins = build_bins(filtered_records, args.interval_minutes)
+    bins = build_bins(filtered_records, args.bin_freq, args.bin_width)
     assignment = assign_to_bins(filtered_records, bins)
 
     #Create a filesystem-safe tag describing the applied filtering
