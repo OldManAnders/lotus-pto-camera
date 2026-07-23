@@ -172,8 +172,45 @@ class TimelapseGenerator:
         temp_ass.close()
         return temp_ass.name
     
-    def export(self, matches, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, progress_callback=None):
+    def _normalize_crop(self, crop):
+        """Normalize the crop values into a tuple of (x, y, width, height)."""
+        if crop is None:
+            return None
+
+        if isinstance(crop, str):
+            crop = tuple(part.strip() for part in crop.split(",") if part.strip())
+
+        if len(crop) != 4:
+            raise ValueError("Crop must contain four values: x, y, width, height.")
+
+        try:
+            x, y, width, height = [int(value) for value in crop]
+        except (TypeError, ValueError) as exc:
+            raise ValueError("Crop values must be integers.") from exc
+
+        if width <= 0 or height <= 0:
+            raise ValueError("Crop width and height must be greater than zero.")
+
+        return (x, y, width, height)
+
+    def _build_video_filter(self, scale, subtitle_path_escaped, crop=None):
+        """Build the ffmpeg video filter chain for export."""
+        crop_values = self._normalize_crop(crop)
+        filters = []
+
+        if crop_values is not None:
+            x, y, width, height = crop_values
+            filters.append(f"crop={width}:{height}:{x}:{y}")
+
+        if scale != 1.0:
+            filters.append(f"scale=trunc(iw*{scale}/2)*2:trunc(ih*{scale}/2)*2")
+
+        filters.append(f"subtitles='{subtitle_path_escaped}'")
+        return ",".join(filters)
+
+    def export(self, matches, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, crop=None, progress_callback=None):
         """Export matched images to video file."""
+        save_path = os.path.abspath(output)
         if not matches:
             raise ValueError("No images to export.")
         
@@ -191,20 +228,15 @@ class TimelapseGenerator:
         # Build subtitle file with timestamps
         subtitle_path = self._build_timestamp_ass(matches, fps)
         subtitle_path_quoted = os.path.abspath(subtitle_path).replace("\\", "/")
-        subtitle_path_escaped = (
-            subtitle_path_quoted
-            .replace(":", "\\:")
-            .replace(",", "\\,")
-            .replace("'", "\\'")
+        subtitle_path_escaped = (subtitle_path_quoted.replace(":", "\\:").replace(",", "\\,").replace("'", "\\'"))
+
+        video_filter = self._build_video_filter(
+            scale=scale,
+            subtitle_path_escaped=subtitle_path_escaped,
+            crop=crop,
         )
-        
-        scale_filter = (
-            f"scale=trunc(iw*{scale}/2)*2:trunc(ih*{scale}/2)*2,"
-            f"subtitles='{subtitle_path_escaped}'"
-        )
-        
-        save_path = os.path.abspath(output)
-        
+
+        #Execute FFMPEG command
         command = [
             "ffmpeg",
             "-y",
@@ -214,7 +246,7 @@ class TimelapseGenerator:
             "-safe", "0",
             "-r", str(fps),
             "-i", list_path,
-            "-vf", scale_filter,
+            "-vf", video_filter,
             "-c:v", codec,
             "-preset", preset,
             "-crf", str(crf),
@@ -384,6 +416,26 @@ class TimelapseGeneratorApp:
         self.crf_var = tk.IntVar(value=23)
         self.entry_crf = ttk.Entry(self.frame_encoding, textvariable=self.crf_var, width=10)
         self.entry_crf.grid(row=2, column=1, padx=5, pady=2, sticky="w")
+
+        ttk.Label(self.frame_encoding, text="Crop X:").grid(row=3, column=0, padx=5, sticky="w")
+        self.crop_x_var = tk.IntVar(value=0)
+        self.entry_crop_x = ttk.Entry(self.frame_encoding, textvariable=self.crop_x_var, width=10)
+        self.entry_crop_x.grid(row=3, column=1, padx=5, pady=2, sticky="w")
+
+        ttk.Label(self.frame_encoding, text="Crop Y:").grid(row=3, column=2, padx=5, sticky="w")
+        self.crop_y_var = tk.IntVar(value=0)
+        self.entry_crop_y = ttk.Entry(self.frame_encoding, textvariable=self.crop_y_var, width=10)
+        self.entry_crop_y.grid(row=3, column=3, padx=5, pady=2, sticky="w")
+
+        ttk.Label(self.frame_encoding, text="Crop W:").grid(row=4, column=0, padx=5, sticky="w")
+        self.crop_w_var = tk.IntVar(value=0)
+        self.entry_crop_w = ttk.Entry(self.frame_encoding, textvariable=self.crop_w_var, width=10)
+        self.entry_crop_w.grid(row=4, column=1, padx=5, pady=2, sticky="w")
+
+        ttk.Label(self.frame_encoding, text="Crop H:").grid(row=4, column=2, padx=5, sticky="w")
+        self.crop_h_var = tk.IntVar(value=0)
+        self.entry_crop_h = ttk.Entry(self.frame_encoding, textvariable=self.crop_h_var, width=10)
+        self.entry_crop_h.grid(row=4, column=3, padx=5, pady=2, sticky="w")
         
         self.frame_actions = ttk.Frame(self.root, padding=10)
         self.frame_actions.pack(pady=10, fill="x", padx=10)
@@ -606,6 +658,21 @@ class TimelapseGeneratorApp:
         except (ValueError, tk.TclError):
             messagebox.showerror("Invalid CRF", "CRF must be an integer between 0 and 51.")
             return
+
+        try:
+            crop = (
+                int(self.crop_x_var.get()),
+                int(self.crop_y_var.get()),
+                int(self.crop_w_var.get()),
+                int(self.crop_h_var.get()),
+            )
+            if all(value == 0 for value in crop):
+                crop = None
+            else:
+                crop = self.generator._normalize_crop(crop)
+        except (ValueError, tk.TclError):
+            messagebox.showerror("Invalid Crop", "Crop values must be integers. Use 0 for no offset and provide width/height greater than zero when cropping.")
+            return
         
         self._set_progress(5, "Preparing export...")
         self.btn_generate.config(state="disabled")
@@ -613,12 +680,12 @@ class TimelapseGeneratorApp:
         # Run export in separate thread
         export_thread = threading.Thread(
             target=self._run_export,
-            args=(matches, save_path, fps, scale, codec, preset, crf),
+            args=(matches, save_path, fps, scale, codec, preset, crf, crop),
             daemon=True,
         )
         export_thread.start()
     
-    def _run_export(self, matches, save_path, fps, scale, codec, preset, crf):
+    def _run_export(self, matches, save_path, fps, scale, codec, preset, crf, crop):
         """Run export in background thread."""
         try:
             self.generator.export(
@@ -630,6 +697,7 @@ class TimelapseGeneratorApp:
                 preset=preset,
                 crf=crf,
                 progress_callback=self._progress_callback,
+                crop=crop,
             )
             self.root.after(0, lambda: messagebox.showinfo("Success", f"Exported {len(matches)} images to {save_path}."))
         except Exception as e:
@@ -653,6 +721,10 @@ def parse_args():
     parser.add_argument("--codec", default="libx264", choices=["libx264", "libx265", "mpeg4"])
     parser.add_argument("--preset", default="medium")
     parser.add_argument("--crf", type=int, default=23)
+    parser.add_argument("--crop-x", type=int, default=None)
+    parser.add_argument("--crop-y", type=int, default=None)
+    parser.add_argument("--crop-w", type=int, default=None)
+    parser.add_argument("--crop-h", type=int, default=None)
     return parser.parse_args()
 
 
@@ -687,6 +759,14 @@ def run_cli(args):
         raise SystemExit("No matching images found.")
     
     print(f"Found {len(matches)} matching images")
+
+    crop_args = [args.crop_x, args.crop_y, args.crop_w, args.crop_h]
+    if any(value is not None for value in crop_args):
+        if not all(value is not None for value in crop_args):
+            raise SystemExit("All crop arguments (--crop-x, --crop-y, --crop-w, --crop-h) must be provided together.")
+        crop = generator._normalize_crop(crop_args)
+    else:
+        crop = None
     
     try:
         def cli_progress(value, message):
@@ -701,6 +781,7 @@ def run_cli(args):
             preset=args.preset,
             crf=args.crf,
             progress_callback=cli_progress,
+            crop=crop,
         )
         print("Export complete!")
     except Exception as e:
