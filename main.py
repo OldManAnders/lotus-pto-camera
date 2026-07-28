@@ -121,10 +121,6 @@ class CaptureController():
             self.microcontroller_handler.wipe()
         if self.camera_handler:
             self.logger.telemetry("",event="camera_temperature", details=self.camera_handler.camera.DeviceTemperature.Value)
-            # Flush buffer
-            self.logger.debug("", extra={"event": "camera_operations", "details": "Flushing camera framebuffer"})
-            for _ in range(10):
-                _ = self.camera_handler.capture_image()
 
 
 # RUN AS CLI
@@ -159,12 +155,7 @@ if __name__ == "__main__":
         cc.start_rig()
 
         # Prepare capture
-        if cc.microcontroller_handler:
-            response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")["demoPair1"])
-            cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
-        if cc.camera_handler:
-            cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)
-
+        cc.prepare_for_capture()
         # Setup centralized logging
         if args.c is None:
             args.c = [["default", "default"]]
@@ -191,11 +182,11 @@ if __name__ == "__main__":
                         _ = cc.camera_handler.capture_image(cam_config_name="flush", light_config_name=light_config_name)
                 response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
                 #Capture image
+                exp_time = cc.camera_handler.camera.ExposureTime.Value
                 img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
                 cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
             if args.capture_delay>0:
                 time.sleep(args.capture_delay)
-               
         #Close out
         if cc.camera_handler:
             cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)
