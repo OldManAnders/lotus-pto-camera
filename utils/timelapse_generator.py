@@ -136,14 +136,14 @@ class TimelapseGenerator:
                 pass
         return base_name
     
-    def _build_timestamp_ass(self, matches, fps):
+    def _build_timestamp_ass(self, matches, fps, overlay_text=None):
         """Build ASS subtitle file for frame timestamps."""
         def format_ass_time(seconds):
             hours = int(seconds // 3600)
             minutes = int((seconds % 3600) // 60)
             secs = seconds % 60
             return f"{hours:d}:{minutes:02d}:{secs:05.2f}"
-        
+
         lines = [
             "[Script Info]",
             "ScriptType: v4.00+",
@@ -158,6 +158,15 @@ class TimelapseGenerator:
             "[Events]",
             "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
         ]
+
+
+        if overlay_text:
+            overlay_text = overlay_text.strip()
+            if overlay_text:
+                total_duration = len(matches) / fps
+                lines.append(
+                    f"Dialogue: 1,0:00:00.00,{format_ass_time(total_duration)},Default,,0,0,0,,{{\\an7}}{overlay_text}"
+                )
         
         for index, entry in enumerate(matches):
             timestamp = self._extract_image_timestamp(entry["path"])
@@ -208,7 +217,7 @@ class TimelapseGenerator:
         filters.append(f"subtitles='{subtitle_path_escaped}'")
         return ",".join(filters)
 
-    def export(self, matches, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, crop=None, progress_callback=None):
+    def export(self, matches, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, crop=None, progress_callback=None, overlay_text=None):
         """Export matched images to video file."""
         save_path = os.path.abspath(output)
         if not matches:
@@ -226,7 +235,7 @@ class TimelapseGenerator:
                 list_file.write(f"file '{safe_path}'\n")
         
         # Build subtitle file with timestamps
-        subtitle_path = self._build_timestamp_ass(matches, fps)
+        subtitle_path = self._build_timestamp_ass(matches, fps, overlay_text)
         subtitle_path_quoted = os.path.abspath(subtitle_path).replace("\\", "/")
         subtitle_path_escaped = (subtitle_path_quoted.replace(":", "\\:").replace(",", "\\,").replace("'", "\\'"))
 
@@ -319,7 +328,6 @@ class TimelapseGenerator:
             
             if progress_callback:
                 progress_callback(100, "Export complete")
-
 
 class TimelapseGeneratorApp:
     """GUI application for timelapse generation."""
@@ -705,98 +713,82 @@ class TimelapseGeneratorApp:
         finally:
             self.root.after(0, lambda: self.btn_generate.config(state="normal"))
 
-
-def parse_args():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Generate timelapse videos from timestamped images.")
-    parser.add_argument("directory", nargs="?", help="Root directory containing the images folder.")
-    parser.add_argument("-o", "--output", help="Output video filename.")
-    parser.add_argument("--start", help="Start date (YYYY-MM-DD)")
-    parser.add_argument("--end", help="End date (YYYY-MM-DD)")
-    parser.add_argument("--rig", default="All")
-    parser.add_argument("--camera", default="All")
-    parser.add_argument("--lighting", default="All")
-    parser.add_argument("--fps", type=int, default=15)
-    parser.add_argument("--scale", type=float, default=1.0)
-    parser.add_argument("--codec", default="libx264", choices=["libx264", "libx265", "mpeg4"])
-    parser.add_argument("--preset", default="medium")
-    parser.add_argument("--crf", type=int, default=23)
-    parser.add_argument("--crop-x", type=int, default=None)
-    parser.add_argument("--crop-y", type=int, default=None)
-    parser.add_argument("--crop-w", type=int, default=None)
-    parser.add_argument("--crop-h", type=int, default=None)
-    return parser.parse_args()
-
-
-def launch_gui():
-    """Launch the GUI application."""
-    root = tk.Tk()
-    app = TimelapseGeneratorApp(root)
-    root.mainloop()
-
-
-def run_cli(args):
-    """Run CLI mode."""
-    if args.directory is None:
-        raise SystemExit("A directory must be supplied in CLI mode.")
-    
-    generator = TimelapseGenerator()
-    
-    try:
-        generator.scan(args.directory)
-    except ValueError as e:
-        raise SystemExit(f"Scan error: {e}")
-    
-    matches = generator.get_matching_images(
-        start=args.start,
-        end=args.end,
-        rig=args.rig,
-        camera=args.camera,
-        lighting=args.lighting,
-    )
-    
-    if not matches:
-        raise SystemExit("No matching images found.")
-    
-    print(f"Found {len(matches)} matching images")
-
-    crop_args = [args.crop_x, args.crop_y, args.crop_w, args.crop_h]
-    if any(value is not None for value in crop_args):
-        if not all(value is not None for value in crop_args):
-            raise SystemExit("All crop arguments (--crop-x, --crop-y, --crop-w, --crop-h) must be provided together.")
-        crop = generator._normalize_crop(crop_args)
-    else:
-        crop = None
-    
-    try:
-        def cli_progress(value, message):
-            print(f"[{value:3.0f}%] {message}")
-        
-        generator.export(
-            matches=matches,
-            output=args.output,
-            fps=args.fps,
-            scale=args.scale,
-            codec=args.codec,
-            preset=args.preset,
-            crf=args.crf,
-            progress_callback=cli_progress,
-            crop=crop,
-        )
-        print("Export complete!")
-    except Exception as e:
-        raise SystemExit(f"Export error: {e}")
-
-
 def main():
     """Main entry point."""
-    args = parse_args()
-    
-    # No arguments -> launch GUI
-    if len(sys.argv) == 1:
-        launch_gui()
+    gui_parser = argparse.ArgumentParser(add_help=False)
+    gui_parser.add_argument("--gui", action="store_true", help="Launch the GUI application.")
+    gui_args, cli_args = gui_parser.parse_known_args()
+
+    #Launch GUI or proceed to CLI
+    if gui_args.gui:
+        root = tk.Tk()
+        app = TimelapseGeneratorApp(root)
+        root.mainloop()
+        return
+
     else:
-        run_cli(args)
+        parser = argparse.ArgumentParser(description="Generate timelapse videos from timestamped images.")
+        parser.add_argument("input", type=str,help="Root directory containing the images folder.")
+        parser.add_argument("output", type=str, help="Output video filename.")
+        parser.add_argument("start", type=str, help="Start date (YYYY-MM-DD)")
+        parser.add_argument("end", type=str, help="End date (YYYY-MM-DD)")
+        parser.add_argument("--rig", type=str, default="All", help="Filter by setup name")
+        parser.add_argument("--camera", type=str, default="All", help="Filter by camera configuration")
+        parser.add_argument("--lighting", type=str, default="All", help="Filter by lighting configuration")
+        parser.add_argument("--fps", type=int, default=15, help="Frames per second")
+        parser.add_argument("--scale", type=float, default=1.0, help="Scale the image resolution by a floating point scaler")
+        parser.add_argument("--codec", default="libx264", choices=["libx264", "libx265", "mpeg4"])
+        parser.add_argument("--preset", default="medium", choices=["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], help="Encoding preset for the selected codec. Slower = better compression.")
+        parser.add_argument("--crf", type=int, default=23)
+        parser.add_argument("--overlay", type=str, default=None, help="Optional text overlay to display on the video. (top left)")
+        parser.add_argument("--crop", type=int, nargs=4,default=None, metavar=("x", "y", "width", "height"), help="Crop an area of the timelapse")
+        args = parser.parse_args(cli_args)
+
+        # Scan for files
+        generator = TimelapseGenerator()
+        try:
+            generator.scan(args.input)
+        except ValueError as e:
+            raise SystemExit(f"Scan error: {e}")
+        
+        matches = generator.get_matching_images(
+            start=args.start,
+            end=args.end,
+            rig=args.rig,
+            camera=args.camera,
+            lighting=args.lighting,
+        )
+        
+        if not matches:
+            raise SystemExit("No matching images found.")
+        else:
+            print(f"Found {len(matches)} matching images")
+
+
+        if args.crop:
+            crop = generator._normalize_crop(args.crop)
+        else:
+            crop = None
+        
+        try:
+            def cli_progress(value, message):
+                print(f"[{value:3.0f}%] {message}")
+
+            generator.export(
+                matches=matches,
+                output=args.output,
+                fps=args.fps,
+                scale=args.scale,
+                codec=args.codec,
+                preset=args.preset,
+                crf=args.crf,
+                progress_callback=cli_progress,
+                crop=crop,
+                overlay_text=args.overlay,
+            )
+            print("Export complete!")
+        except Exception as e:
+            raise SystemExit(f"Export error: {e}")
 
 
 if __name__ == "__main__":
