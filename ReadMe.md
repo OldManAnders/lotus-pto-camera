@@ -57,9 +57,13 @@ sudo systemctl start lotus-capture.service
 ## Configuration
 ### Default configurations
 The config file ('config.yaml') contains the following keys:
+
 **DEFAULT**: Nested dicts with default parameters for camera, lighting and sbc configurations. These are used as a baseline for any subsequent configuration so the defined parameters can be assumed to allways be present.
+
 **setups**: Named configurations of the physical setups that retain the information and parameters needed to connect and control the physical setups (camera, sbc, lighting)
+
 **camera_configs**: Nested dicts with named camera configurations that inherit the default configurations, these are used for 'capture.py' to specify capture conditions. (i.e. 'python3 capture.py setup1 -c named_camera_config1 named_lighting_config1')
+
 **light_config**: Nested dicts with named lighting configurations that inherit the default configurations, these are used for 'capture.py' to specify capture conditions. (i.e. 'python3 capture.py setup1 -c named_camera_config1 named_lighting_config1')
 
 ### Configuration of light and cameras
