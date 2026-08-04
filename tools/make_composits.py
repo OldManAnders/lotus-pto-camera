@@ -91,14 +91,17 @@ class PercentileComposite(CompositeMethod):
         return np.clip(result, 0, 255).astype(np.uint8)
 
 #### BIN HANDLING ####
-def assign_to_bins(records: List[ImageRecord], bins: List[TimeBin]) -> List[TimeBin]:
+def assign_to_bins(records: List[ImageRecord], bins: List[TimeBin], discard_empty=True) -> List[TimeBin]:
     """Finds a matching bin for each record and returns the bin (with the records)"""
     for record in records:
         for b in bins:
-            if b.start <= record.timestamp < b.end:
+            if b.start <= record.timestamp <= b.end:
                 b.records.append(record)
-                break
-    return bins
+    if discard_empty:
+        return [b for b in bins if len(b.records) >=1]
+
+    else:
+        return bins
 
 def build_bins(records: List[ImageRecord], interval: int, width:int) -> List[TimeBin]:
     """Create bins from a list of records with set intervals and bin widths"""
@@ -141,7 +144,7 @@ def process_bin(bin: TimeBin, method: CompositeMethod) -> Optional[np.ndarray]:
         bin.img = method(images)
         return bin
     else:
-        logger.warning(f"Bin {bin.label}: no readable images, skipping")
+        logger.warning(f"Bin {bin.label}: failed to read images, skipping")
         return bin
 
 if __name__ == "__main__":
@@ -154,7 +157,7 @@ if __name__ == "__main__":
     parser.add_argument("--rig", type=str, default=None, help="Filter by setup name")
     parser.add_argument("--camera", nargs='+', type=str, default=None, help="Filter by camera configuration")
     parser.add_argument("--lighting", nargs='+',type=str, default=None, help="Filter by lighting configuration")
-    parser.add_argument("--time_period", nargs=2, action='append' metavar=("starting hour", "ending hour"), default=None, help="Limit each day's images to a time window, for example: --time_period 00:00 12:00")
+    parser.add_argument("--time_period", nargs=2, action='append', metavar=("starting hour", "ending hour"), default=None, help="Limit each day's images to a time window, for example: --time_period 00:00 12:00")
     parser.add_argument("--bin_freq", type=int, default=15, help="How frequent to establish each bin (in minutes)")
     parser.add_argument("--bin_width", type=int, default=15, help="Width of each bin (in minutes)")
     parser.add_argument("--camera_configs", type=str, nargs="+", default=None, help="Restrict to one or more camera configs, omit to include all camera configs.")
@@ -190,7 +193,7 @@ if __name__ == "__main__":
         lighting_configs=args.lighting,
         date_range=(datetime.strptime(args.start, "%Y-%m-%d").date(), datetime.strptime(args.end, "%Y-%m-%d").date()),
         time_ranges=[(datetime.strptime(lim[0], "%H:%M").time(), datetime.strptime(lim[1], "%H:%M").time()) for lim in args.time_period] if args.time_period else None,
-        logger=logger)    
+        logger=logger)
 
     # Show all available filter options (Subject to current filter)
     if args.filter_options:
@@ -208,21 +211,19 @@ if __name__ == "__main__":
     
     # Create bins with relevanct image records
     logger.info("Assigning records to bins")
-    assignment = assign_to_bins(records, bins)
+    assigned_bins = assign_to_bins(records, bins)
 
     # Multiprocessing paralel processing
     logger.info("Processing bins")
     pool = Pool()
 
     # post-process each returned composite
-    for i, bin in enumerate(tqdm(pool.imap_unordered(partial(process_bin, method=method), bins), total=len(bins)), start=1):
+    for i, bin in enumerate(tqdm(pool.imap_unordered(partial(process_bin, method=method), assigned_bins), total=len(assigned_bins)), start=1):
         
         # If the composite succeeded, save the file
         if bin.img is not None: #
             out_path = args.output / f"{bin.label}_{args.rig}_{'Composite'}_{args.method}.jpg"
             cv2.imwrite(str(out_path), bin.img)
-        else:
-            logger.warning(f"({i}/{len(bins)})COMPOSITE FAILED for {bin.label}")
     
     # Close out
     pool.close()
