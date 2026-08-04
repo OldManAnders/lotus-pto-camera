@@ -7,22 +7,21 @@ from utils import parsing
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
+from tqdm import tqdm
 
-#Callback for CLI progress
-def cli_progress(value, message, symbol='%'):
-    print(f"[{value:3.0f}{symbol}] {message}", end="\r")
 
-class TimelapseGenerator:
-    """Core timelapse generation logic - independent from GUI."""
-        
+class TimelapseGenerator:      
     def _build_timestamp_ass(self, records, fps, overlay_text=None):
         """Build ASS subtitle file for frame timestamps."""
+
         def format_ass_time(seconds):
+            """Convert to ASS subtitle timestamps for temporal positioning"""
             hours = int(seconds // 3600)
             minutes = int((seconds % 3600) // 60)
             secs = seconds % 60
             return f"{hours:d}:{minutes:02d}:{secs:05.2f}"
 
+        # Define text formating and style
         lines = [
             "[Script Info]",
             "ScriptType: v4.00+",
@@ -43,9 +42,7 @@ class TimelapseGenerator:
             overlay_text = overlay_text.strip()
             if overlay_text:
                 total_duration = len(records) / fps
-                lines.append(
-                    f"Dialogue: 1,0:00:00.00,{format_ass_time(total_duration)},Default,,0,0,0,,{{\\an7}}{overlay_text}"
-                )
+                lines.append(f"Dialogue: 1,0:00:00.00,{format_ass_time(total_duration)},Default,,0,0,0,,{{\\an7}}{overlay_text}")
 
         # Add a timestamp for each frame in the bottom left
         for index, record in enumerate(records):
@@ -55,6 +52,7 @@ class TimelapseGenerator:
             end_time = (index + 1) / fps
             lines.append(f"Dialogue: 0,{format_ass_time(start_time)},{format_ass_time(end_time)},Default,,0,0,0,,{timestamp}")
         
+        # Write the subtitle file to temp folder
         temp_ass = tempfile.NamedTemporaryFile(delete=False, mode="w", encoding="utf-8", suffix=".ass")
         temp_ass.write("\n".join(lines))
         temp_ass.close()
@@ -80,16 +78,20 @@ class TimelapseGenerator:
         filters.append(f"subtitles='{subtitle_path_escaped}'")
         return ",".join(filters)
 
-    def export(self, records, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, crop=None, progress_callback=None, overlay_text=None):
+    def export(self, records, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, crop=None, overlay_text=None):
         """Export matched images to video file."""
-        save_path = os.path.abspath(output)
-        
+
+        # Check if there even is images in the export
         if len(records) <= 0:
             raise ValueError("No images to export.")
+        total_frames = len(records)
+        pbar = tqdm(total=total_frames, unit="frame")
         
         # Create file list for ffmpeg concat
         with tempfile.NamedTemporaryFile(delete=False, mode="w", encoding="utf-8", suffix=".txt") as list_file:
             list_path = list_file.name
+
+            # Write list of images to include in the video
             for record in records:
                 path_for_list = os.path.abspath(os.fspath(record.path)).replace("\\", "/")
                 safe_path = path_for_list.replace("'", "'\\''")
@@ -100,13 +102,14 @@ class TimelapseGenerator:
         subtitle_path_quoted = os.path.abspath(subtitle_path).replace("\\", "/")
         subtitle_path_escaped = (subtitle_path_quoted.replace(":", "\\:").replace(",", "\\,").replace("'", "\\'"))
 
+        # Create a video filter to apply scaling, cropping and add subtitles/overlays
         video_filter = self._build_video_filter(
             scale=scale,
             subtitle_path_escaped=subtitle_path_escaped,
             crop=crop,
         )
 
-        #Define FFMPEG command
+        # Define FFMPEG command
         command = [
             "ffmpeg",
             "-y",
@@ -122,10 +125,10 @@ class TimelapseGenerator:
             "-crf", str(crf),
             "-pix_fmt", "yuv420p",
             "-progress", "pipe:1",
-            save_path,
+            os.path.abspath(output),
         ]
         
-        #Start ffmpeg process and handle progress reporting
+        # Start ffmpeg process and handle progress reporting
         process = subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
@@ -135,58 +138,38 @@ class TimelapseGenerator:
         )
         
         try:
-            percent = 0
-            total_frames = len(records)
-
-            #Poll the subprocess for progress until it completes      
-            while True:
-                #Read a line from the process stdout
-                line = process.stdout.readline()
-                if not line and process.poll() is not None:
-                    break
-                if not line:
-                    continue
-                
-                #Parse the progress line and update the progress callback
-                line = line.strip()
+            # Report progress
+            last_frame = 0
+            for line in process.stdout:
                 if line.startswith("frame="):
-                    try:
-                        current_frame = int(line.split("=", 1)[1].strip())
-                        progress_value = (current_frame / total_frames)*100
-                        if progress_value > percent:
-                            percent = progress_value
-                            if progress_callback:
-                                progress_callback(percent, f"Exporting frame {current_frame}/{total_frames}...")
-                    except ValueError:
-                        pass
-                
-                elif line.startswith("progress="):
-                    progress_state = line.split("=", 1)[1]
-                    if progress_state == "end":
-                        if progress_callback:
-                            progress_callback(100, "Finalizing render...")
-        
+                    frame = int(line.strip().split("=")[1])
+                    pbar.update(frame - last_frame)
+                    last_frame = frame
+                elif line.strip() == "progress=end":
+                    break      
         finally:
-            #Check if process is finished
+            pbar.close()
+            print("Finalizing export")
+            # Check if process is finished
             retcode = process.poll()
             if retcode is None:
                 process.wait()
                 retcode = process.returncode
             
-            #Clean up temporary files
+            # Clean up temporary files
+            print("Removing temporary files")
             for temp_file in [list_path, subtitle_path]:
                 try:
                     os.remove(temp_file)
                 except OSError:
                     pass
 
-            #FFmpeg failed if return code is not zero, raise an error with stderr output
+            # Check if FFmpeg failed
             if retcode != 0:
                 stderr = process.stderr.read() if process.stderr else ""
-                raise RuntimeError(f"FFmpeg failed with return code {retcode}.\n\n{stderr}")
-            
-            if progress_callback:
-                progress_callback(100, "Export complete")
+                raise RuntimeError(f"FFmpeg failed with return code {retcode}.\n\n{stderr}")      
+            else:
+                print("Export complete!")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate timelapse videos from timestamped images.")
@@ -194,7 +177,7 @@ if __name__ == "__main__":
     parser.add_argument("output", type=str, help="Output video filename.")
     parser.add_argument("start", type=str, help="Start date (YYYY-MM-DD)")
     parser.add_argument("end", type=str, help="End date (YYYY-MM-DD)")
-    parser.add_argument("--rig", type=str, default="Default", help="Filter by setup name")
+    parser.add_argument("--rig", type=str, default=None, help="Filter by setup name")
     parser.add_argument("--camera", nargs='+', type=str, default=None, help="Filter by camera configuration")
     parser.add_argument("--lighting", nargs='+',type=str, default=None, help="Filter by lighting configuration")
     parser.add_argument("--fps", type=int, default=15, help="Frames per second")
@@ -204,7 +187,7 @@ if __name__ == "__main__":
     parser.add_argument("--crf", type=int, default=23)
     parser.add_argument("--overlay", type=str, default=None, help="Optional text overlay to display on the video. (top left)")
     parser.add_argument("--crop", type=int, nargs=4,default=None, metavar=("x", "y", "width", "height"), help="Crop an area of the timelapse")
-    parser.add_argument("--limit_period", nargs=2, metavar=("starting hour", "ending hour"), default=None, help="Limit each day's images to a time window, for example: --limit_period 00:00 12:00")
+    parser.add_argument("--time_period", nargs=2, action='append', metavar=("starting hour", "ending hour"), default=None, help="Limit each day's images to a time window, for example: --time_period 00:00 12:00")
     parser.add_argument("-v", "--verbose", action='store_true', help="Enable verbosity")
     args = parser.parse_args()
 
@@ -213,10 +196,12 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
     if args.verbose:
         logger.setLevel(logging.DEBUG)
+    else: logger.setLevel(logging.INFO)
     
     # Find records
     records = parsing.parse_images(args.input, logger=logger)
     records.sort(key=lambda r: r.timestamp)
+
     if len(records) <= 0:
         raise ValueError(f"No timestamped images were found in the provided directory. {args.input}")
 
@@ -227,7 +212,7 @@ if __name__ == "__main__":
         camera_configs=args.camera,
         lighting_configs=args.lighting,
         date_range=(datetime.strptime(args.start, "%Y-%m-%d").date(), datetime.strptime(args.end, "%Y-%m-%d").date()),
-        time_range=(datetime.strptime(args.limit_period[0], "%H:%M").time(), datetime.strptime(args.limit_period[1], "%H:%M").time()) if args.limit_period else None,
+        time_ranges=[(datetime.strptime(lim[0], "%H:%M").time(), datetime.strptime(lim[1], "%H:%M").time()) for lim in args.time_period] if args.time_period else None,
         logger=logger)
 
     #Sort chronologically
@@ -245,11 +230,8 @@ if __name__ == "__main__":
             codec=args.codec,
             preset=args.preset,
             crf=args.crf,
-            progress_callback=cli_progress,
             crop=args.crop,
             overlay_text=args.overlay,
         )
-        print()
-        print("Export complete!")
     except Exception as e:
         raise SystemExit(f"Export error: {e}")
