@@ -63,8 +63,8 @@ def filter_records(records:List[ImageRecord],
                     camera_rig:str = None,
                     camera_configs:List[str] = None,
                     lighting_configs:List[str] = None,
-                    date_range: tuple = None,
-                    time_range: tuple = None,
+                    date_range:tuple = None,
+                    time_ranges:List[tuple] = None,
                     logger = None,) -> List[ImageRecord]:
     
     filtered = list(records)
@@ -85,11 +85,10 @@ def filter_records(records:List[ImageRecord],
             logger.debug(f"{len(filtered)} fits the date range. [{start_date} - {end_date}]")
         
     # Filter by time range
-    if time_range is not None:
-        start_time, end_time = time_range
-        filtered = [r for r in filtered if start_time <= r.timestamp <= end_time]
+    if time_ranges is not None:
+        filtered = [r for r in filtered if any(start_time <= r.timestamp.time() <= end_time for start_time, end_time in time_ranges)]
         if logger:
-            logger.debug(f"{len(filtered)} fits the time range. [{start_time} - {end_time}]")
+            logger.debug(f"{len(filtered)} fits the time range. [{' | '.join([f'{x} - {y}' for x,y in time_ranges])}]")
         
     # Filter by list of camera configs
     if camera_configs is not None:
