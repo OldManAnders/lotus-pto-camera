@@ -165,8 +165,6 @@ if __name__ == "__main__":
     parser.add_argument("--time_period", nargs=2, action='append', metavar=("starting hour", "ending hour"), default=None, help="Limit each day's images to a time window, for example: --time_period 00:00 12:00")
     parser.add_argument("--bin_freq", type=int, default=15, help="How frequent to establish each bin (in minutes)")
     parser.add_argument("--bin_width", type=int, default=15, help="Width of each bin (in minutes)")
-    parser.add_argument("--camera_configs", type=str, nargs="+", default=None, help="Restrict to one or more camera configs, omit to include all camera configs.")
-    parser.add_argument("--lighting_configs", type=str, nargs="+", default=None, help="Restrict to one or more lighting configs, omit to include all lighting configs.")
     parser.add_argument("--filter_options", action='store_true', help="Display all available filter options")
     parser.add_argument("--method", type=str, default="mean", choices=CompositeMethod.available_methods(), help="Composite method to use")
     parser.add_argument("-a", "--method_args", action='append', default=[], help="Optional overide arguments for composit methods")
