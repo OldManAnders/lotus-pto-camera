@@ -154,21 +154,31 @@ def process_bin(bin: TimeBin, method: CompositeMethod, logger=None) -> Optional[
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("input", type=Path,help="the '*/images/' directory containing all of the images")
-    parser.add_argument("output", type=Path, help="Output video filename.")
-    parser.add_argument("start", type=str, help="Start date (YYYY-MM-DD)")
-    parser.add_argument("end", type=str, help="End date (YYYY-MM-DD)")
-    parser.add_argument("--rig", type=str, default=None, help="Filter by setup name")
-    parser.add_argument("--camera", nargs='+', type=str, default=None, help="Filter by camera configuration")
-    parser.add_argument("--lighting", nargs='+',type=str, default=None, help="Filter by lighting configuration")
-    parser.add_argument("--time_period", nargs=2, action='append', metavar=("starting hour", "ending hour"), default=None, help="Limit each day's images to a time window, for example: --time_period 00:00 12:00")
-    parser.add_argument("--bin_freq", type=int, default=15, help="How frequent to establish each bin (in minutes)")
-    parser.add_argument("--bin_width", type=int, default=15, help="Width of each bin (in minutes)")
-    parser.add_argument("--filter_options", action='store_true', help="Display all available filter options")
-    parser.add_argument("--method", type=str, default="mean", choices=CompositeMethod.available_methods(), help="Composite method to use")
-    parser.add_argument("-a", "--method_args", action='append', default=[], help="Optional overide arguments for composit methods")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
+    parser = argparse.ArgumentParser(description="Create composite images from a set of input images.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    positional = parser.add_argument_group("Positional arguments")
+    positional.add_argument("input", type=Path, help="The '*/images/' directory containing all of the images")
+    positional.add_argument("output", type=Path, help="Output directory for composite images")
+    positional.add_argument("start", type=str, help="Start date (YYYY-MM-DD)")
+    positional.add_argument("end", type=str, help="End date (YYYY-MM-DD)")
+    # FILTER ARGUMENTS
+    filter_group = parser.add_argument_group("Filter options")
+    filter_group.add_argument("--rig", type=str, default=None, help="Filter by setup name")
+    filter_group.add_argument("--camera", nargs="+", type=str, default=None, help="Filter by camera configuration")
+    filter_group.add_argument("--lighting", nargs="+", type=str, default=None, help="Filter by lighting configuration")
+    filter_group.add_argument("--time_period", nargs=2, action="append", metavar=("START_HOUR", "END_HOUR"), default=None, help="Limit each day's images to a time window, for example: --time_period 00:00 12:00")
+    # BINNING ARGUMENTS
+    bin_group = parser.add_argument_group("Bin options")
+    bin_group.add_argument("--bin_freq", type=int, default=15, help="How frequent to establish each bin (minutes)")
+    bin_group.add_argument("--bin_width", type=int, default=15, help="Width of each bin (minutes)")
+    # COMPOSITING ARGUMENTS
+    composite_group = parser.add_argument_group("Composite options")
+    composite_group.add_argument("--method", type=str, default="mean", choices=CompositeMethod.available_methods(), help="Composite method to use")
+    composite_group.add_argument("-a", "--method_args", action="append", default=[], help="Override arguments for composite methods")
+    # MISC ARGUMENTS
+    misc_group = parser.add_argument_group("Miscellaneous")
+    misc_group.add_argument("--filter_options", action="store_true", help="Display all available filter options")
+    misc_group.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
+    # PARSE
     args = parser.parse_args()
 
     # Setup logger

@@ -1,5 +1,4 @@
 import os
-import argparse
 import subprocess
 import tempfile
 import logging
@@ -172,23 +171,34 @@ class TimelapseGenerator:
                 print("Export complete!")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate timelapse videos from timestamped images.")
-    parser.add_argument("input", type=str,help="Root directory containing the images folder.")
-    parser.add_argument("output", type=str, help="Output video filename.")
-    parser.add_argument("start", type=str, help="Start date (YYYY-MM-DD)")
-    parser.add_argument("end", type=str, help="End date (YYYY-MM-DD)")
-    parser.add_argument("--rig", type=str, default=None, help="Filter by setup name")
-    parser.add_argument("--camera", nargs='+', type=str, default=None, help="Filter by camera configuration")
-    parser.add_argument("--lighting", nargs='+',type=str, default=None, help="Filter by lighting configuration")
-    parser.add_argument("--fps", type=int, default=15, help="Frames per second")
-    parser.add_argument("--scale", type=float, default=1.0, help="Scale the image resolution by a floating point scaler")
-    parser.add_argument("--codec", default="libx264", choices=["libx264", "libx265", "mpeg4"])
-    parser.add_argument("--preset", default="medium", choices=["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], help="Encoding preset for the selected codec. Slower = better compression.")
-    parser.add_argument("--crf", type=int, default=23)
-    parser.add_argument("--overlay", type=str, default=None, help="Optional text overlay to display on the video. (top left)")
-    parser.add_argument("--crop", type=int, nargs=4,default=None, metavar=("x", "y", "width", "height"), help="Crop an area of the timelapse")
-    parser.add_argument("--time_period", nargs=2, action='append', metavar=("starting hour", "ending hour"), default=None, help="Limit each day's images to a time window, for example: --time_period 00:00 12:00")
-    parser.add_argument("-v", "--verbose", action='store_true', help="Enable verbosity")
+    import argparse
+    parser = argparse.ArgumentParser(description="Generate timelapse videos from timestamped images.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    positional = parser.add_argument_group("Positional arguments")
+    positional.add_argument("input", type=str, help="Root directory containing the images folder.")
+    positional.add_argument("output", type=str, help="Output video filename.")
+    positional.add_argument("start", type=str, help="Start date (YYYY-MM-DD)")
+    positional.add_argument("end", type=str, help="End date (YYYY-MM-DD)")
+    # FILTER ARGUMENTS
+    filter_group = parser.add_argument_group("Filter options")
+    filter_group.add_argument("--rig", type=str, default=None, help="Filter by setup name")
+    filter_group.add_argument("--camera", nargs="+", type=str, default=None, help="Filter by camera configuration")
+    filter_group.add_argument("--lighting", nargs="+", type=str, default=None, help="Filter by lighting configuration")
+    filter_group.add_argument("--time_period", nargs=2, action="append", metavar=("START_HOUR", "END_HOUR"), default=None, help="Limit each day's images to a time window, for example: --time_period 00:00 12:00")
+    # VIDEO ARGUMENTS
+    video_group = parser.add_argument_group("Video options")
+    video_group.add_argument("--fps", type=int, default=15, help="Frames per second")
+    video_group.add_argument("--scale", type=float, default=1.0, help="Scale the image resolution by a floating point scaler")
+    video_group.add_argument("--codec", default="libx264", choices=["libx264", "libx265", "mpeg4"], help="Video codec to use")
+    video_group.add_argument("--preset", default="medium", choices=["ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"], help="Encoding preset for the selected codec")
+    video_group.add_argument("--crf", type=int, default=23, help="Constant Rate Factor for quality/compression")
+    video_group.add_argument("--crop", type=int, nargs=4, default=None, metavar=("x", "y", "width", "height"), help="Crop area of the timelapse")
+    #OVERLAY ARGUMENTS
+    overlay_group = parser.add_argument_group("Overlay options")
+    overlay_group.add_argument("--overlay", type=str, default=None, help="Optional text overlay to display on the video (top left)")
+    #MISC ARGUMENTS
+    misc_group = parser.add_argument_group("Miscellaneous")
+    misc_group.add_argument("-v", "--verbose", action="store_true", help="Enable verbosity")
+    #PARSE
     args = parser.parse_args()
 
     #Setup logger
