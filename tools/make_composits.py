@@ -63,19 +63,22 @@ class CompositeMethod(ABC):
         return self.composite(images)
 
 #### COMPOSITE METHODS ####
- 
 # Per-pixel average across the stack.
 @CompositeMethod.register("mean")
 class MeanComposite(CompositeMethod):
     def composite(self, images: List[np.ndarray]):
-        stack = np.stack(images).astype(np.float32)
-        return np.clip(stack.mean(axis=0), 0, 255).astype(np.uint8)
+        acc = np.zeros(images[0].shape, dtype=np.float32)
+        for image in images:
+            acc += image.astype(np.float32, copy=False)
 
+        result = acc / len(images)
+        return np.clip(result, 0, 255).astype(np.uint8)
+    
 # Per-pixel median across the stack
 @CompositeMethod.register("median")
 class MedianComposite(CompositeMethod): 
     def composite(self, images: List[np.ndarray]):
-        stack = np.stack(images).astype(np.float32)
+        stack = np.stack(images)
         return np.clip(np.median(stack, axis=0), 0, 255).astype(np.uint8)
 
 # Percentile based sampling
@@ -83,12 +86,10 @@ class MedianComposite(CompositeMethod):
 class PercentileComposite(CompositeMethod):
     def __init__(self, percentile: float = 25.0):
         self.percentile = float(percentile)
-        #self.__name__ = self.__name__+f"{self.percentile}"
 
     def composite(self, images: List[np.ndarray]) -> np.ndarray:
-        stack = np.stack(images).astype(np.float32)
-        result = np.percentile(stack, self.percentile, axis=0)
-        return np.clip(result, 0, 255).astype(np.uint8)
+        stack = np.stack(images)
+        return np.clip(np.percentile(stack, self.percentile, axis=0), 0, 255).astype(np.uint8)
 
 #### BIN HANDLING ####
 def assign_to_bins(records: List[ImageRecord], bins: List[TimeBin], discard_empty=True) -> List[TimeBin]:
@@ -114,33 +115,37 @@ def build_bins(records: List[ImageRecord], interval: int, width:int) -> List[Tim
     start = datetime.combine(min(timestamps).date(), time.min)
     end = datetime.combine(max(timestamps).date() + timedelta(days=1), time.min)
 
-    # Build consecutive non-overlapping bins for the day
+    # Build bins at intervals of 'interval' minutes, each bin is 'width' minutes long
     bins = []
-    n_bins = int((end - start) / timedelta(minutes=interval))
-    for i in range(n_bins):
-        bin_start = start + timedelta(minutes=i*interval)
-        bin_end = bin_start + timedelta(minutes=width)
+    bin_start = start
+    while bin_start < end:
+        bin_end = min(bin_start + timedelta(minutes=width), end)
         bins.append(TimeBin(records=[], start=bin_start, end=bin_end))
+        bin_start += timedelta(minutes=interval)
     return bins
 
 def load_image(path: Path) -> Optional[np.ndarray]:
     """Load image from disk"""
-    image = cv2.imread(str(path))
+    image = cv2.imread(str(path), cv2.IMREAD_COLOR)
     if image is None:
         logger.warning("Could not read image %s", path)
     return image
 
-def process_bin(bin: TimeBin, method: CompositeMethod) -> Optional[np.ndarray]:
+def process_bin(bin: TimeBin, method: CompositeMethod, logger=None) -> Optional[np.ndarray]:
     """Function for parralel processing and bin verification"""
+    logger.debug(f"Processing bin {bin.label}")
     # Check if there is images
     if len(bin.records) <=0:
-        logger.warning(f"Bin {bin.label}: is empty, skipping")
+        if logger:
+            logger.warning(f"Bin {bin.label}: is empty, skipping")
         return bin
 
     # Try to read the images
-    images = [load_image(r.path) for r in bin.records]
+    logger.debug(f"Bin {bin.label}: reading {len(bin.records)} images")
+    images = [img for img in (load_image(r.path) for r in bin.records) if img is not None]
     if len(images)>=1:
         # Process image
+        logger.debug(f"Bin {bin.label}: processing {len(images)} images with method {method.__class__.__name__}")
         bin.img = method(images)
         return bin
     else:
@@ -183,9 +188,11 @@ if __name__ == "__main__":
     method = CompositeMethod.create(args.method, **{item.split("=", 1)[0]: item.split("=", 1)[1] for item in args.method_args})
 
     # Gather all images
+    logger.debug(f"Parsing images from {args.input}")
     records = parsing.parse_images(args.input, logger=logger)
 
     # Filer images based on criteria
+    logger.debug(f"Filtering {len(records)} records with criteria: rig={args.rig}, camera={args.camera}, lighting={args.lighting}, date_range=({args.start}, {args.end}), time_ranges={args.time_period}")
     records = parsing.filter_records(
         records,
         camera_rig=args.rig,
@@ -218,8 +225,7 @@ if __name__ == "__main__":
     pool = Pool()
 
     # post-process each returned composite
-    for i, bin in enumerate(tqdm(pool.imap_unordered(partial(process_bin, method=method), assigned_bins), total=len(assigned_bins)), start=1):
-        
+    for i, bin in enumerate(tqdm(pool.imap_unordered(partial(process_bin, method=method, logger=logger), assigned_bins), total=len(assigned_bins)), start=1):
         # If the composite succeeded, save the file
         if bin.img is not None: #
             out_path = args.output / f"{bin.label}_{args.rig}_{'Composite'}_{args.method}.jpg"
