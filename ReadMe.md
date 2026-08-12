@@ -5,93 +5,93 @@
 2. ```source venv/bin/activate```
 3. ```pip install -r requirements.txt```
 
-### Systemd timer and service schedule
-We use systemd for service calling and scheduling of the capturing process. That way we can ensure that capture is run routinely when the system is up, and it is can retain persistency (i.e. trigger after reboot if time-window was during server downtime).
-**lotus-capture.sh**: Bash script that specifies image acquisition arguments and sequence.
-**lotus-capture.service**: systemd Service to register (calls lotus-capture.sh when triggered)
-**lotus-capture.timer**: systemd Timer to trigger capture service with controlled intervals
+### Systemd service and timer
+This project includes a systemd service wrapper for scheduled capture runs.
 
-#### Initial Setup
-1. Copy service file into linux system
-```
-sudo mv ./systemd/lotus-capture.service  /etc/systemd/system/lotus-capture.service
-```
+- `systemd/lotus-capture.sh`: Bash launcher used by the service.
+- `systemd/lotus-capture.service`: systemd service unit.
+- `systemd/lotus-capture.timer`: systemd timer unit.
+- `systemd/setup.sh`: helper script to install and enable the service/timer.
 
-2. Copy timer file into linux system
-```
-sudo mv ./systemd/lotus-capture.timer /etc/systemd/system/lotus-capture.timer
+#### Install with helper script
+Review `systemd/lotus-capture.service` for any path updates, then run:
+
+```bash
+sudo ./systemd/setup.sh
 ```
 
-3. Update path to lotus-capture.sh
-```
-sudo nano /etc/systemd/system/lotus-capture.service
-``` 
+#### Manual install
 
-5. Reboot daemon 
-```
+```bash
+sudo cp ./systemd/lotus-capture.service /etc/systemd/system/
+sudo cp ./systemd/lotus-capture.timer /etc/systemd/system/
 sudo systemctl daemon-reload
-```
-
-5. Enable timer
-```
 sudo systemctl enable --now lotus-capture.timer
 ```
 
 #### Debugging
-Verify timer is enabled:
-```
-systemctl list-timers --all
-```
-
-Check lotus-capture log
-```
-journalctl -u lotus-capture.service
-```
-
-Manually trigger service right now
-```
-sudo systemctl start lotus-capture.service
-```
+- `systemctl list-timers --all`
+- `journalctl -u lotus-capture.service`
+- `sudo systemctl start lotus-capture.service`
 
 
 ## Configuration
-### Default configurations
-The config file ('config.yaml') contains the following keys:
 
-**DEFAULT**: Nested dicts with default parameters for camera, lighting and sbc configurations. These are used as a baseline for any subsequent configuration so the defined parameters can be assumed to allways be present.
+### Main config file
+The main configuration file is `config.yaml`.
 
-**setups**: Named configurations of the physical setups that retain the information and parameters needed to connect and control the physical setups (camera, sbc, lighting)
+Key sections:
+- `DEFAULT`: default camera and light settings.
+- `setups`: rig definitions with camera and microcontroller network details.
+- `camera_configs`: named camera presets.
+- `light_configs`: named lighting presets.
+- `network`: Unifi / PoE controller configuration.
 
-**camera_configs**: Nested dicts with named camera configurations that inherit the default configurations, these are used for 'capture.py' to specify capture conditions. (i.e. 'python3 capture.py setup1 -c named_camera_config1 named_lighting_config1')
+### Notes
+- `light_configs` is the correct key for named lighting presets.
+- Named presets inherit values from `DEFAULT` unless overridden.
+- `main.py` loads `setups`, `camera_configs`, and `light_configs` to control capture behavior.
 
-**light_config**: Nested dicts with named lighting configurations that inherit the default configurations, these are used for 'capture.py' to specify capture conditions. (i.e. 'python3 capture.py setup1 -c named_camera_config1 named_lighting_config1')
+## Execution
+### CLI capture
+Use `main.py` for command-line capture control.
 
-### Configuration of light and cameras
-By default the camera, lighting and sbc settings are outlined in the DEFAULT key of the config file, any specified config under the 'camera_configs' or 'light_configs' will inherit properties from DEFAULT so variation of any variable herein must be specified in subsequent configurations.
+```bash
+python3 main.py <rig> -c <camera_config> <light_config> [-c <camera_config> <light_config> ...]
+```
 
-## Execution of code
+Example:
 
-### main.py
-1. Headless Control (CLI Only)
-Use this for simple command-line interaction with the camera
+```bash
+python3 main.py rig1 -c default default
+```
 
-```python3 -m Camera.camera_control```
+Common options:
+- `--config ./config.yaml`
+- `--output_path /home/aau/lotus-data/`
+- `--disable_camera`
+- `--disable_microcontroller`
+- `--log_level debug`
+- `--capture_delay 1`
 
-2. Full Dashboard
-Launches the full interactive terminal interface with live logs
+If no `-c` pairs are provided, the script defaults to `default default`.
 
-```python3 main.py```
+Output image names follows the following format:
+```
+YYMMDD-HHMMSS_SETUPNAME_CAMERACONFIG_LIGHTINGCONFIG.png"
+```
+ 
 
-3. Automated Snapper Mode
-To start the script with the auto-snapping background task enabled, use the -a or --auto flag (defaulted to 60 sec intervals)
+### GUI capture interface
+Launch the capture GUI:
 
-```python3 main.py -a 60```
+```bash
+python3 gui_capture.py
+```
 
-### capture.py
-1. Single image capture
-Capture an image from a specific setup with named lighting and capture configurations
-```python3 capture.py rig1 -c low_light dim```
-
-2. Image sequence capture
-Capture a series of images with a series of named lighting and capture configurations
-```python3 capture.py rig1 -c low_light dim -c low_light bright -c high_light dim```
+### Tool helpers
+See [tools/README.md](tools/README.md) for helper-script documentation.
+Current helper scripts include:
+- `tools/basler_export_nodes.py`
+- `tools/make_composits.py`
+- `tools/timelapse_generator.py`
