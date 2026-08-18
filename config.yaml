@@ -16,6 +16,10 @@ DEFAULT:
       AcquisitionFrameRateEnable: True
       AcquisitionFrameRate: 2.0
       # Auto settings
+      AutoROIHeight: 3548
+      AutoROIWidth: 3548
+      AutoROIOffsetX: 0
+      AutoROIOffsetY: 4
       AutoTargetBrightness: 0.5   # Mellem 0.0 og 1.0
       AutoFunction: "MinimizeGain" # "MinimizeGain", eller "MinimizeExposureTime"
       ExposureAuto: "Continuous"   # 'Off', 'Once', 'Continuous'
@@ -106,6 +110,123 @@ camera_configs:
   20pAutoExp:
     <<: *default_camera_settings
     AutoTargetBrightness: 0.2
+
+  samplecrop: &sample_crop_settings
+    <<: *default_camera_settings
+    Width: 850
+    Height: 850
+
+  sample00:
+    <<: *sample_crop_settings
+    OffsetX: 133
+    OffsetY: 52
+    AutoOffsetX: 258
+    AutoOffsetY: 177
+
+  sample10:
+    <<: *sample_crop_settings
+    OffsetX: 964
+    OffsetY: 36
+    AutoOffsetX: 1089
+    AutoOffsetY: 161
+  
+  sample20:
+    <<: *sample_crop_settings
+    OffsetX: 1807
+    OffsetY: 48
+    AutoOffsetX: 1932
+    AutoOffsetY: 173
+  
+  sample30:
+    <<: *sample_crop_settings
+    OffsetX: 2666
+    OffsetY: 25
+    AutoOffsetX: 2791
+    AutoOffsetY: 150
+  
+  sample01:
+    <<: *sample_crop_settings
+    OffsetX: 156
+    OffsetY: 984
+    AutoOffsetX: 281
+    AutoOffsetY: 1109
+  
+  sample11:
+    <<: *sample_crop_settings
+    OffsetX: 984
+    OffsetY: 991
+    AutoOffsetX: 1109
+    AutoOffsetY: 1116
+  
+  sample21:
+    <<: *sample_crop_settings
+    OffsetX: 1811
+    OffsetY: 984
+    AutoOffsetX: 1936
+    AutoOffsetY: 1109
+  
+  sample31:
+    <<: *sample_crop_settings
+    OffsetX: 2627
+    OffsetY: 941
+    AutoOffsetX: 2752
+    AutoOffsetY: 1066
+  
+  sample02:
+    <<: *sample_crop_settings
+    OffsetX: 140
+    OffsetY: 1815
+    AutoOffsetX: 265
+    AutoOffsetY: 1940
+  
+  sample12:
+    <<: *sample_crop_settings
+    OffsetX: 976
+    OffsetY: 1769
+    AutoOffsetX: 1101
+    AutoOffsetY: 1894
+  
+  sample22:
+    <<: *sample_crop_settings
+    OffsetX: 1800
+    OffsetY: 1757
+    AutoOffsetX: 1925
+    AutoOffsetY: 1882
+  
+  sample32:
+    <<: *sample_crop_settings
+    OffsetX: 2604
+    OffsetY: 1750
+    AutoOffsetX: 2729
+    AutoOffsetY: 1875
+  
+  sample03:
+    <<: *sample_crop_settings
+    OffsetX: 133
+    OffsetY: 2698
+    AutoOffsetX: 258
+    AutoOffsetY: 2823
+  
+  sample13:
+    <<: *sample_crop_settings
+    OffsetX: 968
+    OffsetY: 2698
+    AutoOffsetX: 1093
+    AutoOffsetY: 2823
+  
+  sample23:
+    <<: *sample_crop_settings
+    OffsetX: 1792
+    OffsetY: 2643
+    AutoOffsetX: 1917
+    AutoOffsetY: 2768
+  
+  sample33:
+    <<: *sample_crop_settings
+    OffsetX: 2647
+    OffsetY: 2698
+    AutoOffsetX: 2772
+    AutoOffsetY: 2823
 
 # Named lighting configuration presets
 light_configs:

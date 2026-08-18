@@ -173,3 +173,38 @@ Or cropped to only be off a specific region (using top left x,y, width height bo
 ```bash
 python timelapse_generator.py ~/lotus-data/ ~/20260701_20260801.mp4 2026-07-01 2026-08-01 --crop 100 500 1200 1400
 ```
+
+## get_crop_coordinates
+It opens the selected image and lets the user click on the image to choose the top-left coordinate of a crop box. It also optionally highlights an inner ROI box and prints a ready-to-paste configuration block for use in config files or scripts.
+
+### Arguments:
+#### Positional
+- `image_path` is the path to the source image to inspect.
+- `box_width` is the full crop width in pixels.
+- `box_height` is the full crop height in pixels.
+#### Optional
+- `--roi_width` optionally define an inner ROI region
+- `--roi_height` optionally define an inner ROI region
+
+### Examples:
+Select a full crop region from an image without an ROI
+```bash
+python tools/crop_selector.py image.png 850 850
+```
+
+Select a crop box and also show a nested ROI region centered inside it
+```bash
+python tools/crop_selector.py image.png 850 850 400 400
+```
+
+Typical output after clicking a location in the image:
+```text
+sample_01:
+    <<: *sample_crop_settings
+    OffsetX: 1270
+    OffsetY: 940
+    AutoOffsetX: 1445
+    AutoOffsetY: 1115
+```
+
+This yaml format can be directly pasted in the camera config settings of the Config.yaml

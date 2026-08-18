@@ -188,6 +188,10 @@ class CameraHandler:
             self.camera.AutoGainLowerLimit.Value = self.config["AutoGainLowerLimit"]
             self.camera.AutoGainUpperLimit.Value = self.config["AutoGainUpperLimit"]
             self.camera.BalanceWhiteAuto.Value = self.config["BalanceWhiteAuto"]
+            self.camera.AutoFunctionROIWidth.Value = self.config["AutoROIWidth"]
+            self.camera.AutoFunctionROIHeight.Value = self.config["AutoROIHeight"]
+            self.camera.AutoFunctionROIOffsetX.Value = self.config["AutoROIOffsetX"]
+            self.camera.AutoFunctionROIOffsetY.Value = self.config["AutoROIOffsetY"]
 
             # Log completion
             self.logger.debug("", extra={"event": "camera_settings_updated", "details": f"Camera settings updated: {self.name}"})
