@@ -3,20 +3,11 @@ This script executes a series of image captures with a set of given camera param
 The lighting and camera parameters are called by the names specified in the config.yaml.
 To acquire from several rigs, this script should be executed for every camera setup
 '''
-import yaml, logging, traceback, sys, datetime, os, time, argparse
+import yaml, logging, traceback, sys, time, argparse
 from camera.camera_handler import CameraHandler
 from microcontroller.microcontroller_handler import MicrocontrollerHandler
 from utils.logging_config import configure_logging, get_logger, TELEMETRY
 from utils.unifi_poe_controller import UnifiConfig, UnifiPoEController
-
-__log_level_map__={
-    "debug": logging.DEBUG,
-    "telemetry": TELEMETRY,
-    "info": logging.INFO,
-    "warning": logging.WARNING,
-    "error": logging.ERROR,
-    "critical": logging.CRITICAL,
-}
 
 class CaptureController():
     def __init__(self,
@@ -39,7 +30,11 @@ class CaptureController():
         self.config = config
         self.enable_camera = enable_camera
         self.enable_microcontroller = enable_microcontroller
-        self.rig = self.get_subconfig("setups")[self.name]
+        setups = self.get_subconfig("setups")
+        if self.name not in setups:
+            self.logger.error("", extra={"event": "config_loading", "details": f"Unknown rig '{self.name}'. Available rigs: {list(setups.keys())}"})
+            raise ValueError(f"Unknown rig '{self.name}'. Available rigs: {list(setups.keys())}")
+        self.rig = setups[self.name]
 
         # Unifi API
         self.unifi = self.setup_unifi_api(self.get_subconfig("network"))
@@ -50,6 +45,7 @@ class CaptureController():
             return UnifiPoEController(UnifiConfig(**network_conf["unifi"]))
         except Exception as e:
             self.logger.error("", extra={"event": "unifi_initialization_failure", "details": str(e)})
+            raise
 
     def set_log_level(self, log_level):
         ll_map={
@@ -72,7 +68,7 @@ class CaptureController():
                 err = traceback.format_exc().replace("\n", "|")
                 self.logger.error("", extra={"event": "exception", "details": err})
                 self.logger.error("", extra={"event": "abort", "details": "Exiting script via sys.exit()"})
-                sys.exit()
+                sys.exit(1)
 
     def get_subconfig(self, subconfig):
         subconfig = subconfig.lower()
@@ -88,6 +84,13 @@ class CaptureController():
             self.logger.warning("", extra={"event": "config loading", "details": f"Attempted to retrieve unknown subconfig: '{subconfig}'."})
             return {}
 
+    def get_named_config(self, kind, name):
+        configs = self.get_subconfig(kind)
+        if name not in configs:
+            self.logger.error("", extra={"event": "config_loading", "details": f"Unknown {kind} config '{name}'. Available: {list(configs.keys())}"})
+            raise ValueError(f"Unknown {kind} config '{name}'. Available: {list(configs.keys())}")
+        return configs[name]
+
     def power_on_camera(self):
         # Power on PoE port
         try:
@@ -96,13 +99,14 @@ class CaptureController():
                 switch_mac=self.get_subconfig("network")["camera_switch_mac"],
                 port_index=self.rig["camera"]["switch_port"],
                 enabled=True)
-            if result["success"]:
-                self.logger.debug("", extra={"event": "poe_camera_warmup", "details": "Waiting 20 seconds for camera to power on and initialize"})
-                time.sleep(10)
-            else:
-                self.logger.error
+            if not result["success"]:
+                self.logger.error("", extra={"event": "poe_control_failure", "details": f"Failed to verify PoE power-on for camera on port {self.rig['camera']['switch_port']}"})
+                raise RuntimeError("Camera PoE power-on not verified")
+            self.logger.debug("", extra={"event": "poe_camera_warmup", "details": "Waiting 10 seconds for camera to power on and initialize"})
+            time.sleep(10)
         except Exception as e:
             self.logger.error("", extra={"event": "poe_control_failure", "details": str(e)})
+            raise
 
     def power_off_camera(self):
         try:
@@ -168,23 +172,24 @@ if __name__ == "__main__":
             cc.logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"}) 
             if cc.microcontroller_handler:
                 #Initiate light
-                response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
-                cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
+                response = cc.microcontroller_handler.set_leds(**cc.get_named_config("lights", light_config_name))
+                cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response.get("led1") if response else "NA"} L2-{response.get("led2") if response else "NA"} L3-{response.get("led3") if response else "NA"}"})
             if cc.camera_handler:
                 #Set camera settings
-                cc.camera_handler.load_config(cc.get_subconfig("camera")[cam_config_name])
+                cc.camera_handler.load_config(cc.get_named_config("camera", cam_config_name))
                 #Flush buffer and let auto-settings converge
                 for _ in range(3):
-                    cc.logger.debug("", extra={"event": "lights_set", "details": f"Auto-settings pass  L1-{response["led1"]} L2-{response["led2"]} L3-{response["led3"]}"})
                     if cc.microcontroller_handler:
-                        cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
+                        _ = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
                     for _ in range(5):
                         _ = cc.camera_handler.capture_image(cam_config_name="flush", light_config_name=light_config_name)
-                response = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
                 #Capture image
                 exp_time = cc.camera_handler.camera.ExposureTime.Value
                 img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
-                cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
+                if img is None:
+                    cc.logger.error("", extra={"event": "capture_failed", "details": f"Skipping save for {cam_config_name}/{light_config_name} - no frame captured"})
+                else:
+                    cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
             if args.capture_delay>0:
                 time.sleep(args.capture_delay)
         #Close out
@@ -195,5 +200,16 @@ if __name__ == "__main__":
             #Turn off lights
             cc.microcontroller_handler.set_leds(0,0,0)
             cc.microcontroller_handler.logger.debug("", extra={"event": "lights", "details": "Setting lights off after capture"})
+    except KeyboardInterrupt:
+        cc.logger.warning("", extra={"event": "interrupted", "details": "Capture interrupted by user (Ctrl-C)"})
+        sys.exit(130)
     finally:
-        cc.power_off_camera()
+        exc_info = sys.exc_info()
+        try:
+            cc.power_off_camera()
+        except BaseException as e:
+            cc.logger.error("", extra={"event": "poe_control_failure", "details": f"PoE power-off during shutdown failed: {e}"})
+            if exc_info[0] is None:
+                raise
+
+    sys.exit(0)
