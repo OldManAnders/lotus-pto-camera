@@ -77,14 +77,16 @@ class TimelapseGenerator:
         filters.append(f"subtitles='{subtitle_path_escaped}'")
         return ",".join(filters)
 
-    def export(self, records, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, crop=None, overlay_text=None):
+    def export(self, records, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, crop=None, overlay_text=None, progress_callback=None):
         """Export matched images to video file."""
 
         # Check if there even is images in the export
         if len(records) <= 0:
             raise ValueError("No images to export.")
         total_frames = len(records)
-        pbar = tqdm(total=total_frames, unit="frame")
+        pbar = None
+        if progress_callback is None:
+            pbar = tqdm(total=total_frames, unit="frame")
         
         # Create file list for ffmpeg concat
         with tempfile.NamedTemporaryFile(delete=False, mode="w", encoding="utf-8", suffix=".txt") as list_file:
@@ -142,12 +144,16 @@ class TimelapseGenerator:
             for line in process.stdout:
                 if line.startswith("frame="):
                     frame = int(line.strip().split("=")[1])
-                    pbar.update(frame - last_frame)
+                    if pbar is not None:
+                        pbar.update(frame - last_frame)
+                    if progress_callback is not None:
+                        progress_callback(frame, total_frames)
                     last_frame = frame
                 elif line.strip() == "progress=end":
                     break      
         finally:
-            pbar.close()
+            if pbar is not None:
+                pbar.close()
             print("Finalizing export")
             # Check if process is finished
             retcode = process.poll()
