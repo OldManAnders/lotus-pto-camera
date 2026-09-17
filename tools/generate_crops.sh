@@ -7,6 +7,8 @@ END="2026-07-07"
 RIG="rig1"
 CAMERA="20pAutoExp"
 LIGHTING="demoAll"
+TIME_PERIOD_START="00:00"
+TIME_PERIOD_END="23:59"
 FPS=1
 CROP_W=850
 CROP_H=850
@@ -33,5 +35,5 @@ for entry in "${CROPS[@]}"; do
  IFS=',' read -r CROP_X CROP_Y CROP_W CROP_H LABEL <<< "$entry"
  OUT_FILE="${OUT_DIR}/${LABEL}_${START//-/}_${END//-/}_${CAMERA}_${LIGHTING}.mp4"
  echo "=== ${LABEL}: x=${CROP_X} y=${CROP_Y} w=${CROP_W} h=${CROP_H} -> ${OUT_FILE} ==="
- python utils/timelapse_generator.py "$DATA_DIR" "$OUT_FILE" "$START" "$END" --rig "$RIG" --fps "$FPS" --camera "$CAMERA" --lighting "$LIGHTING" --crop "$CROP_X" "$CROP_Y" "$CROP_W" "$CROP_H" --overlay "${LABEL} [${CAMERA}] [${LIGHTING}]" --preset veryfast
+ python utils/timelapse_generator.py "$DATA_DIR" "$OUT_FILE" "$START" "$END" --rig "$RIG" --fps "$FPS" --camera "$CAMERA" --lighting "$LIGHTING" --time_period "$TIME_PERIOD_START" "$TIME_PERIOD_END" --crop "$CROP_X" "$CROP_Y" "$CROP_W" "$CROP_H" --overlay "${LABEL} [${CAMERA}] [${LIGHTING}]" --preset veryfast
 done
