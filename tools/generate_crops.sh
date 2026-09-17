@@ -35,5 +35,5 @@ for entry in "${CROPS[@]}"; do
  IFS=',' read -r CROP_X CROP_Y CROP_W CROP_H LABEL <<< "$entry"
  OUT_FILE="${OUT_DIR}/${LABEL}_${START//-/}_${END//-/}_${CAMERA}_${LIGHTING}.mp4"
  echo "=== ${LABEL}: x=${CROP_X} y=${CROP_Y} w=${CROP_W} h=${CROP_H} -> ${OUT_FILE} ==="
- python utils/timelapse_generator.py "$DATA_DIR" "$OUT_FILE" "$START" "$END" --rig "$RIG" --fps "$FPS" --camera "$CAMERA" --lighting "$LIGHTING" --time_period "$TIME_PERIOD_START" "$TIME_PERIOD_END" --crop "$CROP_X" "$CROP_Y" "$CROP_W" "$CROP_H" --overlay "${LABEL} [${CAMERA}] [${LIGHTING}]" --preset veryfast
+ python utils/timelapse_generator.py "$DATA_DIR" "$OUT_FILE" "$START" "$END" --rig "$RIG" --fps "$FPS" --camera "$CAMERA" --lighting "$LIGHTING" --time_period "$TIME_PERIOD_START" "$TIME_PERIOD_END" --crop "$CROP_X" "$CROP_Y" "$CROP_W" "$CROP_H" --overlay "${LABEL} [${CAMERA}] [${LIGHTING}]"
 done
