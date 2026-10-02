@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from datetime import datetime
@@ -15,12 +16,21 @@ class ImageRecord:
     timestamp: datetime
     camera_config: str = None
     lighting_config: str = None
+    metadata: Optional[dict] = None
 
     @property
     def timestamp_as_string(self) -> str:
         return self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
 
-def parse_filename(path:Path, logger=None):
+def parse_metadata_file(json_path: Path) -> Optional[dict]:
+    """Parse sidecar JSON metadata file. Returns None if missing or invalid."""
+    try:
+        with open(json_path, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError):
+        return None
+
+def parse_filename(path:Path, logger=None, load_metadata=False):
     match = FILENAME_PATTERN.search(path.stem)
     if not match:
         if logger:
@@ -29,19 +39,23 @@ def parse_filename(path:Path, logger=None):
     else:
         try: #to parse filename into Image Record
             timestamp = datetime.strptime(f"{match['date']}-{match['time']}", "%Y%m%d-%H%M%S")
-            return ImageRecord(
+            record = ImageRecord(
                 path=path, 
                 camera_rig=match["rig"],
                 timestamp=timestamp,
                 camera_config=match["camera_config"],
                 lighting_config=match["lighting_config"])
+            if load_metadata:
+                json_path = path.with_suffix(".json")
+                record.metadata = parse_metadata_file(json_path)
+            return record
         #Handlee when filenames dont align with known format
         except ValueError:
             if logger:
                 logger.warning(f"Skipping {path.name}: could not parse timestamp")
             return None
 
-def parse_images(input_dir:str, extensions:tuple = IMAGE_EXTENSIONS, logger=None) -> List[ImageRecord]:
+def parse_images(input_dir:str, extensions:tuple = IMAGE_EXTENSIONS, logger=None, load_metadata=False) -> List[ImageRecord]:
     input_dir = Path(input_dir)
     records = []
     #Iterate over folder recursively
@@ -50,7 +64,7 @@ def parse_images(input_dir:str, extensions:tuple = IMAGE_EXTENSIONS, logger=None
     # Process every file
     for i, path in enumerate(matches):
         if path.suffix.lower() in extensions:
-            record = parse_filename(path)
+            record = parse_filename(path, logger=logger, load_metadata=load_metadata)
             if record:
                 records.append(record)
     #Sort and return
