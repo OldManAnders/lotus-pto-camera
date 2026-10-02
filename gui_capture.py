@@ -9,12 +9,14 @@ typed in manually (LED1/LED2/LED3), mirroring the original simple GUI.
 """
 import os
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 import yaml
 
 from main import CaptureController
+from utils.logging_config import configure_logging
 
 
 class CameraGuiApp:
@@ -71,10 +73,13 @@ class CameraGuiApp:
 
         self.enable_camera_var = tk.BooleanVar(value=True)
         self.enable_mc_var = tk.BooleanVar(value=True)
+        self.enable_unifi_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(frame, text="Enable Camera", variable=self.enable_camera_var).grid(
             row=1, column=0, sticky=tk.W, pady=2)
         ttk.Checkbutton(frame, text="Enable Microcontroller", variable=self.enable_mc_var).grid(
             row=1, column=1, sticky=tk.W, pady=2)
+        ttk.Checkbutton(frame, text="Enable UniFi", variable=self.enable_unifi_var).grid(
+            row=2, column=0, sticky=tk.W, pady=2)
 
     def _build_io_section(self, parent):
         frame = ttk.LabelFrame(parent, text=" Session & Storage ", padding="10")
@@ -322,6 +327,25 @@ class CameraGuiApp:
         finally:
             self.root.after(0, lambda: self.run_btn.config(state='normal'))
 
+    def _capture_manual(self, cam_config_name, requested):
+        """Same as CaptureController._capture_pair but re-sends manual LED dict during flush."""
+        cc = self.cc
+        if not cc.enable_camera or cc.camera_handler is None:
+            return None, {"settings_actual": {}}, None
+        cc.camera_handler.load_config(cc.get_named_config("camera", cam_config_name))
+        for _ in range(cc.FLUSH_ROUNDS):
+            if cc.enable_microcontroller and cc.microcontroller_handler is not None:
+                cc.microcontroller_handler.set_leds(**requested)
+            for _ in range(cc.FLUSH_GRABS):
+                cc.camera_handler.capture_image(cam_config_name="flush", light_config_name="manual")
+        camera_meta = cc.camera_handler.get_camera_meta() if hasattr(cc.camera_handler, "get_camera_meta") else {"settings_actual": {}}
+        try:
+            temp = cc.camera_handler.camera.DeviceTemperature.Value
+        except Exception:
+            temp = None
+        img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name="manual")
+        return img, camera_meta, temp
+
     def run_sequence(self):
         rig = self.rig_cmb.get()
         session_name = self.session_ent.get().strip()
@@ -337,6 +361,7 @@ class CameraGuiApp:
 
         os.makedirs(output_folder, exist_ok=True)
         self.log(f"--- Starting Capture Sequence ({session_name}) on rig '{rig}' ---")
+        configure_logging(level="DEBUG", rig=rig)
 
         self.cc = None
         try:
@@ -345,6 +370,7 @@ class CameraGuiApp:
                 config=self.config,
                 enable_camera=self.enable_camera_var.get(),
                 enable_microcontroller=self.enable_mc_var.get(),
+                enable_unifi=self.enable_unifi_var.get(),
                 output_path=output_folder,
                 log_level="debug",
             )
@@ -357,46 +383,58 @@ class CameraGuiApp:
 
             for i, step in enumerate(self.sequence, start=1):
                 cam_config_name = step["cam_config"]
+                timestamp = time.strftime("%Y%m%d-%H%M%S")  # sole ground truth
                 self.log(f"--- Step {i}/{len(self.sequence)}: cam='{cam_config_name}' ---")
 
-                if self.cc.microcontroller_handler:
+                if self.cc.enable_microcontroller and self.cc.microcontroller_handler is not None:
                     if step["light_type"] == "named":
                         light_config_name = step["light_config"]
-                        led_kwargs = self.cc.get_subconfig("lights")[light_config_name]
-                        self.log(f"Setting LEDs from named config '{light_config_name}': {led_kwargs}")
-                        self.cc.microcontroller_handler.set_leds(**led_kwargs)
+                        requested, light_status = self.cc._set_leds(light_config_name)
+                        self.log(f"Setting LEDs from named config '{light_config_name}': {requested}")
                     else:
                         leds = step["leds"]
                         light_config_name = f"manual_{leds[0]}_{leds[1]}_{leds[2]}"
+                        requested = {"led1": leds[0], "led2": leds[1], "led3": leds[2]}
                         self.log(f"Setting LEDs manually: {leds}")
-                        self.cc.microcontroller_handler.set_leds(*leds)
+                        self.cc.microcontroller_handler.set_leds(**requested)
+                        try:
+                            light_status = self.cc.microcontroller_handler.get_status() or {}
+                        except Exception:
+                            light_status = {}
                 else:
                     light_config_name = (step["light_config"] if step["light_type"] == "named"
                                           else f"manual_{step['leds'][0]}_{step['leds'][1]}_{step['leds'][2]}")
+                    if step["light_type"] == "named":
+                        requested = dict(self.cc.get_named_config("lights", light_config_name))
+                    else:
+                        leds = step["leds"]
+                        requested = {"led1": leds[0], "led2": leds[1], "led3": leds[2]}
+                    light_status = None
                     self.log("Microcontroller disabled - skipping LED set.")
 
-                if self.cc.camera_handler:
+                if self.cc.enable_camera and self.cc.camera_handler is not None:
                     self.log(f"Loading camera config '{cam_config_name}'...")
-                    self.cc.camera_handler.load_config(self.cc.get_subconfig("camera")[cam_config_name])
+                    img, camera_meta, camera_internal_temp = self.cc._capture_pair(cam_config_name, light_config_name) if step["light_type"] == "named" else self._capture_manual(cam_config_name, requested)
 
-                    self.log("Capturing image...")
-                    img = self.cc.camera_handler.capture_image(
-                        cam_config_name=cam_config_name, light_config_name=light_config_name)
-
-                    print(img.shape)
-                    self.log(f"Saving image to {output_folder}...")
-                    self.cc.camera_handler.save_image(
-                        img, cam_config_name=f"{session_name}_{cam_config_name}",
-                        light_config_name=light_config_name)
+                    if img is None:
+                        self.log("Error: Capture failed - skipping save (no frame).")
+                    else:
+                        effective_cam_name = f"{session_name}_{cam_config_name}"
+                        self.log(f"Saving image to {output_folder}...")
+                        metadata = self.cc.build_capture_metadata(
+                            timestamp=timestamp, cam_config_name=effective_cam_name,
+                            light_config_name=light_config_name, requested_light=requested,
+                            light_actual=light_status, camera_meta=camera_meta,
+                            camera_internal_temp=camera_internal_temp, capture_delay_sec=0)
+                        self.cc.camera_handler.save_image(
+                            img, cam_config_name=effective_cam_name,
+                            light_config_name=light_config_name,
+                            timestamp=timestamp, metadata=metadata)
+                        self.log(f"Captured {effective_cam_name}/{light_config_name} ({img.shape[1]}x{img.shape[0]})")
                 else:
                     self.log("Camera disabled - skipping capture.")
 
-            if self.cc.microcontroller_handler:
-                self.log("Turning lights off...")
-                self.cc.microcontroller_handler.set_leds(0, 0, 0)
-
-            if self.cc.camera_handler:
-                self.cc.camera_handler.close()
+            self.cc._cleanup()
 
             self.log("Success: Capture sequence complete!")
             self.root.after(0, lambda: messagebox.showinfo(
