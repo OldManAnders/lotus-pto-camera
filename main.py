@@ -8,6 +8,24 @@ from camera.camera_handler import CameraHandler
 from microcontroller.microcontroller_handler import MicrocontrollerHandler
 from utils.logging_config import configure_logging, get_logger, TELEMETRY
 from utils.unifi_poe_controller import UnifiConfig, UnifiPoEController
+from dataclasses import dataclass
+
+
+@dataclass
+class CaptureStep:
+    """A single capture request, normalized across the CLI and GUI.
+
+    ``camera_config`` selects a preset from ``camera_configs``. ``light_config``
+    is the name written into the saved filename. ``leds`` holds explicit
+    ``set_leds`` kwargs for manual lighting; when ``None`` the LED values are
+    looked up from ``light_configs`` by name. ``save_camera_config`` overrides
+    the camera-config token in the filename (defaults to ``camera_config``).
+    """
+    camera_config: str
+    light_config: str
+    leds: dict = None
+    save_camera_config: str = None
+
 
 class CaptureController():
     def __init__(self,
@@ -126,6 +144,60 @@ class CaptureController():
         if self.camera_handler:
             self.logger.telemetry("",event="camera_temperature", details=self.camera_handler.camera.DeviceTemperature.Value)
 
+    def run_capture_sequence(self, steps, capture_delay=0):
+        """Run every capture step through the shared rig pipeline.
+
+        For each step: set the lights, load the camera preset, flush the buffer
+        so the auto-exposure/white-balance algorithms converge, capture one
+        frame, and save it. When the sequence finishes the lights are turned off
+        and the camera is closed.
+        """
+        for step in steps:
+            cam_config_name = step.camera_config
+            light_config_name = step.light_config
+            save_cam_config_name = step.save_camera_config or cam_config_name
+            led_kwargs = step.leds
+
+            self.logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"})
+
+            if self.microcontroller_handler:
+                # Initiate light (named config resolved lazily on first use)
+                if led_kwargs is None:
+                    led_kwargs = self.get_named_config("lights", light_config_name)
+                response = self.microcontroller_handler.set_leds(**led_kwargs)
+                self.logger.info("", extra={"event": "lights_set", "details": f"L1-{response.get("led1") if response else "NA"} L2-{response.get("led2") if response else "NA"} L3-{response.get("led3") if response else "NA"}"})
+
+            if self.camera_handler:
+                # Set camera settings
+                self.camera_handler.load_config(self.get_named_config("camera", cam_config_name))
+                # Flush buffer and let auto-settings converge
+                for _ in range(3):
+                    if self.microcontroller_handler:
+                        _ = self.microcontroller_handler.set_leds(**led_kwargs)
+                    for _ in range(5):
+                        _ = self.camera_handler.capture_image(cam_config_name="flush", light_config_name=light_config_name)
+                # Capture image
+                img = self.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
+                if img is None:
+                    self.logger.error("", extra={"event": "capture_failed", "details": f"Skipping save for {cam_config_name}/{light_config_name} - no frame captured"})
+                else:
+                    self.camera_handler.save_image(img, cam_config_name=save_cam_config_name, light_config_name=light_config_name)
+
+            if capture_delay > 0:
+                time.sleep(capture_delay)
+
+        self.shutdown_capture()
+
+    def shutdown_capture(self):
+        """Turn the lights off and close the camera after a capture run."""
+        if self.camera_handler:
+            self.camera_handler.logger.telemetry("", event="camera_temperature", details=self.camera_handler.camera.DeviceTemperature.Value)
+            self.camera_handler.close()
+        if self.microcontroller_handler:
+            # Turn off lights
+            self.microcontroller_handler.set_leds(0, 0, 0)
+            self.microcontroller_handler.logger.debug("", extra={"event": "lights", "details": "Setting lights off after capture"})
+
 
 # RUN AS CLI
 if __name__ == "__main__":
@@ -165,41 +237,14 @@ if __name__ == "__main__":
             args.c = [["default", "default"]]
             cc.logger.warning("", extra={"event": "config_parsing", "details":"No configs provided"})
 
-        # Iterate over provided camera and lighting configurations
-        for c in args.c:
-            cam_config_name = c[0]
-            light_config_name = c[1]
-            cc.logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"}) 
-            if cc.microcontroller_handler:
-                #Initiate light
-                response = cc.microcontroller_handler.set_leds(**cc.get_named_config("lights", light_config_name))
-                cc.logger.info("", extra={"event": "lights_set", "details": f"L1-{response.get("led1") if response else "NA"} L2-{response.get("led2") if response else "NA"} L3-{response.get("led3") if response else "NA"}"})
-            if cc.camera_handler:
-                #Set camera settings
-                cc.camera_handler.load_config(cc.get_named_config("camera", cam_config_name))
-                #Flush buffer and let auto-settings converge
-                for _ in range(3):
-                    if cc.microcontroller_handler:
-                        _ = cc.microcontroller_handler.set_leds(**cc.get_subconfig("lights")[light_config_name])
-                    for _ in range(5):
-                        _ = cc.camera_handler.capture_image(cam_config_name="flush", light_config_name=light_config_name)
-                #Capture image
-                exp_time = cc.camera_handler.camera.ExposureTime.Value
-                img = cc.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
-                if img is None:
-                    cc.logger.error("", extra={"event": "capture_failed", "details": f"Skipping save for {cam_config_name}/{light_config_name} - no frame captured"})
-                else:
-                    cc.camera_handler.save_image(img, cam_config_name=cam_config_name, light_config_name=light_config_name)
-            if args.capture_delay>0:
-                time.sleep(args.capture_delay)
-        #Close out
-        if cc.camera_handler:
-            cc.camera_handler.logger.telemetry("", event="camera_temperature", details=cc.camera_handler.camera.DeviceTemperature.Value)
-            cc.camera_handler.close()
-        if cc.microcontroller_handler:
-            #Turn off lights
-            cc.microcontroller_handler.set_leds(0,0,0)
-            cc.microcontroller_handler.logger.debug("", extra={"event": "lights", "details": "Setting lights off after capture"})
+        # Build normalized capture steps from the requested config pairs
+        steps = [
+            CaptureStep(camera_config=cam_config_name, light_config=light_config_name)
+            for cam_config_name, light_config_name in args.c
+        ]
+
+        # Run the shared capture pipeline
+        cc.run_capture_sequence(steps, capture_delay=args.capture_delay)
     except KeyboardInterrupt:
         cc.logger.warning("", extra={"event": "interrupted", "details": "Capture interrupted by user (Ctrl-C)"})
         sys.exit(130)

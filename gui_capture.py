@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import yaml
 
-from main import CaptureController
+from main import CaptureController, CaptureStep
 
 
 class CameraGuiApp:
@@ -306,6 +306,23 @@ class CameraGuiApp:
     # ------------------------------------------------------------------ #
     # Capture execution
     # ------------------------------------------------------------------ #
+    def _to_capture_step(self, step, session_name):
+        """Convert a GUI sequence entry into a CaptureController CaptureStep."""
+        cam_config = step["cam_config"]
+        if step["light_type"] == "named":
+            light_config = step["light_config"]
+            leds = None
+        else:
+            led_values = step["leds"]
+            light_config = f"manual_{led_values[0]}_{led_values[1]}_{led_values[2]}"
+            leds = {"led1": led_values[0], "led2": led_values[1], "led3": led_values[2]}
+        return CaptureStep(
+            camera_config=cam_config,
+            light_config=light_config,
+            leds=leds,
+            save_camera_config=f"{session_name}_{cam_config}",
+        )
+
     def run_sequence_threaded(self):
         """Runs the capture sequence on a background thread so the GUI stays responsive."""
         if not self.sequence:
@@ -355,48 +372,9 @@ class CameraGuiApp:
             self.log("Preparing for capture (wipe + buffer flush)...")
             self.cc.prepare_for_capture()
 
-            for i, step in enumerate(self.sequence, start=1):
-                cam_config_name = step["cam_config"]
-                self.log(f"--- Step {i}/{len(self.sequence)}: cam='{cam_config_name}' ---")
-
-                if self.cc.microcontroller_handler:
-                    if step["light_type"] == "named":
-                        light_config_name = step["light_config"]
-                        led_kwargs = self.cc.get_subconfig("lights")[light_config_name]
-                        self.log(f"Setting LEDs from named config '{light_config_name}': {led_kwargs}")
-                        self.cc.microcontroller_handler.set_leds(**led_kwargs)
-                    else:
-                        leds = step["leds"]
-                        light_config_name = f"manual_{leds[0]}_{leds[1]}_{leds[2]}"
-                        self.log(f"Setting LEDs manually: {leds}")
-                        self.cc.microcontroller_handler.set_leds(*leds)
-                else:
-                    light_config_name = (step["light_config"] if step["light_type"] == "named"
-                                          else f"manual_{step['leds'][0]}_{step['leds'][1]}_{step['leds'][2]}")
-                    self.log("Microcontroller disabled - skipping LED set.")
-
-                if self.cc.camera_handler:
-                    self.log(f"Loading camera config '{cam_config_name}'...")
-                    self.cc.camera_handler.load_config(self.cc.get_subconfig("camera")[cam_config_name])
-
-                    self.log("Capturing image...")
-                    img = self.cc.camera_handler.capture_image(
-                        cam_config_name=cam_config_name, light_config_name=light_config_name)
-
-                    print(img.shape)
-                    self.log(f"Saving image to {output_folder}...")
-                    self.cc.camera_handler.save_image(
-                        img, cam_config_name=f"{session_name}_{cam_config_name}",
-                        light_config_name=light_config_name)
-                else:
-                    self.log("Camera disabled - skipping capture.")
-
-            if self.cc.microcontroller_handler:
-                self.log("Turning lights off...")
-                self.cc.microcontroller_handler.set_leds(0, 0, 0)
-
-            if self.cc.camera_handler:
-                self.cc.camera_handler.close()
+            steps = [self._to_capture_step(step, session_name) for step in self.sequence]
+            self.log(f"Running capture sequence ({len(steps)} step(s))...")
+            self.cc.run_capture_sequence(steps)
 
             self.log("Success: Capture sequence complete!")
             self.root.after(0, lambda: messagebox.showinfo(
