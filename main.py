@@ -85,8 +85,7 @@ class CaptureController():
         except Exception as e:
                 err = traceback.format_exc().replace("\n", "|")
                 self.logger.error("", extra={"event": "exception", "details": err})
-                self.logger.error("", extra={"event": "abort", "details": "Exiting script via sys.exit()"})
-                sys.exit(1)
+                raise RuntimeError(f"Failed to start rig '{self.name}': {e}") from e
 
     def get_subconfig(self, subconfig):
         subconfig = subconfig.lower()
@@ -248,6 +247,9 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         cc.logger.warning("", extra={"event": "interrupted", "details": "Capture interrupted by user (Ctrl-C)"})
         sys.exit(130)
+    except Exception as e:
+        cc.logger.error("", extra={"event": "abort", "details": str(e)})
+        sys.exit(1)
     finally:
         exc_info = sys.exc_info()
         try:

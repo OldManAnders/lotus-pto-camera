@@ -43,24 +43,25 @@ class CameraHandler:
         self.logger = get_logger(name, component=self.name.split(",")[0])
         self.logger.debug("", extra={"event": "camera_handler_initialized", "details": f"{name}"})
 
-        # Get camera
-        if ip is None: #If not IP specified get first available device
-            self.camera = pylon.InstantCamera(pylon.TlFactory.GetInstance().CreateFirstDevice())
-        else:
-            device_info = pylon.DeviceInfo()
-            device_info.SetPropertyValue("IpAddress", ip)
-            tl_factory = pylon.TlFactory.GetInstance()
-            device = tl_factory.CreateFirstDevice(device_info)
+        # Get camera and open it. Discovery failures surface from
+        # CreateFirstDevice (not as a None camera), so guard the whole block.
+        try:
+            if ip is None: #If not IP specified get first available device
+                device = pylon.TlFactory.GetInstance().CreateFirstDevice()
+            else:
+                device_info = pylon.DeviceInfo()
+                device_info.SetPropertyValue("IpAddress", ip)
+                device = pylon.TlFactory.GetInstance().CreateFirstDevice(device_info)
             self.camera = pylon.InstantCamera(device)
-            if self.camera is None:
-                self.logger.error("", extra={"event": "camera_not_found", "details": f"Camera not found at IP: {ip}"})
-                self.close()
+            self.camera.Open()
+        except Exception as e:
+            self.logger.error("", extra={"event": "camera_not_found", "details": f"Failed to open camera at IP: {ip if ip is not None else 'first available'} - {e}"})
+            raise
 
-        # Open cammera
-        self.camera.Open()
         self.camera_mutex = threading.Lock()
         
         # Setup config
+        self.last_config = None
         if config:
             self.load_config(config)
         
@@ -127,7 +128,10 @@ class CameraHandler:
         )
             self.camera.Close()
             self.camera.Open()
-            self.load_config(self.last_config)
+            if self.last_config is not None:
+                self.load_config(self.last_config)
+            else:
+                self.logger.warning("", extra={"event": "reconnect_no_config", "details": "No previous camera config to restore after reconnect"})
             self.logger.info("", extra={"event": "camera_reconnected", "details": f"Camera reconnected: {self.name}"})
 
         except Exception as e:
