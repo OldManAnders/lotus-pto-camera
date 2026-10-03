@@ -297,6 +297,10 @@ class CameraGuiApp:
         self.log_text.see(tk.END)
         self.log_text.config(state='disabled')
 
+    def log_threadsafe(self, message):
+        """Post a log line to the Tk main loop. (Tkinter is not thread-safe.)"""
+        self.root.after(0, lambda: self.log(message))
+
     def browse_folder(self):
         selected_dir = filedialog.askdirectory()
         if selected_dir:
@@ -353,7 +357,7 @@ class CameraGuiApp:
             return
 
         os.makedirs(output_folder, exist_ok=True)
-        self.log(f"--- Starting Capture Sequence ({session_name}) on rig '{rig}' ---")
+        self.log_threadsafe(f"--- Starting Capture Sequence ({session_name}) on rig '{rig}' ---")
 
         self.cc = None
         try:
@@ -366,27 +370,27 @@ class CameraGuiApp:
                 log_level="debug",
             )
 
-            self.log("Starting rig (powering camera, connecting handlers)...")
+            self.log_threadsafe("Starting rig (powering camera, connecting handlers)...")
             self.cc.start_rig()
 
-            self.log("Preparing for capture (wipe + buffer flush)...")
+            self.log_threadsafe("Preparing for capture (wipe + buffer flush)...")
             self.cc.prepare_for_capture()
 
             steps = [self._to_capture_step(step, session_name) for step in self.sequence]
-            self.log(f"Running capture sequence ({len(steps)} step(s))...")
+            self.log_threadsafe(f"Running capture sequence ({len(steps)} step(s))...")
             self.cc.run_capture_sequence(steps)
 
-            self.log("Success: Capture sequence complete!")
+            self.log_threadsafe("Success: Capture sequence complete!")
             self.root.after(0, lambda: messagebox.showinfo(
                 "Success", f"Captured {len(self.sequence)} image(s) successfully."))
 
         except Exception as e:
-            self.log(f"Error: Capture sequence failed: {e}")
+            self.log_threadsafe(f"Error: Capture sequence failed: {e}")
             self.root.after(0, lambda err=e: messagebox.showerror(
                 "Capture Error", f"Failed during capture execution:\n{err}"))
         finally:
             if self.cc is not None:
-                self.log("Powering off camera...")
+                self.log_threadsafe("Powering off camera...")
                 self.cc.power_off_camera()
 
 
