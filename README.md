@@ -3,18 +3,18 @@
 Automated image-capture system for the LOTUS-PTO project. Dedicated capture rigs photograph samples under controlled lighting on a private `192.168.1.x` network, and the collected time-series images are processed into composites and timelapses for analysis.
 
 Each rig is made up of:
-- **Basler ace 2 GigE camera** — powered over PoE, controlled via pypylon. Camera features/settings reference: [`camera/basler_camera_nodes.md`](camera/basler_camera_nodes.md).
-- **ESP32-C3 microcontroller** — drives three LED channels and a lens wiper over HTTP. Firmware lives in [`microcontroller/esp32c3wts320ethevo/`](microcontroller/esp32c3wts320ethevo/); full HTTP API: [`microcontroller/communication.md`](microcontroller/communication.md).
+- **Basler ace 2 GigE camera** — powered over PoE, controlled via pypylon. Camera features/settings reference: [`docs/basler_camera_nodes.md`](docs/basler_camera_nodes.md).
+- **ESP32-C3 microcontroller** — drives three LED channels and a lens wiper over HTTP. Firmware lives in [`microcontroller/esp32c3wts320ethevo/`](microcontroller/esp32c3wts320ethevo/); full HTTP API: [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md).
 - **UniFi switch** — powers cameras/microcontrollers and cycles PoE ports on/off.
 - **Capture machine** — run scheduled captures and store images; [`tools/`](tools/README.md) turns them into composites and timelapses.
 
 ## Repository layout
 ```
-main.py                     CLI capture controller (CaptureController)
+main.py                     CLI entry point
 gui_capture.py              Tkinter GUI wrapper around CaptureController
+capture/                    CaptureController + CameraHandler (pypylon) + MicrocontrollerHandler (HTTP)
 config.yaml                 Central config: rigs, camera/light presets, network
-camera/                     CameraHandler (pypylon) + camera feature reference
-microcontroller/            MicrocontrollerHandler (HTTP client) + ESP32-C3 firmware
+microcontroller/            ESP32-C3 firmware
 utils/                      Logging, UniFi PoE control, image filename parsing
 network/                    Ethernet / network setup scripts
 systemd/                    Service, timer, and install script for scheduled capture
@@ -78,7 +78,9 @@ Images are saved as `YYYYMMDD-HHMMSS_SETUPNAME_CAMERACONFIG_LIGHTINGCONFIG.png` 
 
 Example: `20260601-143022_rig1_default_demoAll.png`
 
-`utils/parsing.py` and the tools depend on this exact filename format.
+`utils/parsing.py` and the tools depend on this exact filename format, so the rig, camera config, and lighting config tokens must not contain underscores. Manual LED captures from the GUI encode the lighting config as `manual-<led1>-<led2>-<led3>` (hyphens, not underscores).
+
+The GUI writes each run into a session subdirectory, `<output_path>/<session>/images/YYYY-MM-DD/`, which keeps manual captures separate from the scheduled automatic captures (which write straight into the automatic output root). Pointing the GUI's Output Folder at that automatic root is a deliberate choice to intermingle them.
 
 ## Data processing
 
@@ -91,6 +93,6 @@ Example: `20260601-143022_rig1_default_demoAll.png`
 - `sync_push.sh` — sync captured image sets to another machine.
 
 ## Further reading
-- [`camera/basler_camera_nodes.md`](camera/basler_camera_nodes.md) — camera feature reference.
-- [`microcontroller/communication.md`](microcontroller/communication.md) — microcontroller HTTP API.
+- [`docs/basler_camera_nodes.md`](docs/basler_camera_nodes.md) — camera feature reference.
+- [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md) — microcontroller HTTP API.
 - [`tools/README.md`](tools/README.md) — data processing tools.

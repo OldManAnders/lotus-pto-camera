@@ -42,7 +42,7 @@ No body. Responds `{"wiper":"done"}` after the sweep finishes, or `{"wiper":"alr
 Does not return a body.
 
 ## Python handler
-`microcontroller/microcontroller_handler.py` wraps the endpoints using `requests`. 
+`capture/microcontroller.py` wraps the endpoints using `requests`. 
 Construct with `MicrocontrollerHandler(ip, port=80, timeout=5, heartbeat_interval=10, name="NA,NA", verbose=False)`. 
 HTTP failures are logged (via `utils/logging_config.py`) and return `None`; they do not raise.
 
