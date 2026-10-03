@@ -151,41 +151,42 @@ class CaptureController():
         frame, and save it. When the sequence finishes the lights are turned off
         and the camera is closed.
         """
-        for step in steps:
-            cam_config_name = step.camera_config
-            light_config_name = step.light_config
-            save_cam_config_name = step.save_camera_config or cam_config_name
-            led_kwargs = step.leds
+        try:
+            for step in steps:
+                cam_config_name = step.camera_config
+                light_config_name = step.light_config
+                save_cam_config_name = step.save_camera_config or cam_config_name
+                led_kwargs = step.leds
 
-            self.logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"})
+                self.logger.info("", extra={"event": "capture", "details": f"{light_config_name}, {cam_config_name}"})
 
-            if self.microcontroller_handler:
-                # Initiate light (named config resolved lazily on first use)
-                if led_kwargs is None:
-                    led_kwargs = self.get_named_config("lights", light_config_name)
-                response = self.microcontroller_handler.set_leds(**led_kwargs)
-                self.logger.info("", extra={"event": "lights_set", "details": f"L1-{response.get("led1") if response else "NA"} L2-{response.get("led2") if response else "NA"} L3-{response.get("led3") if response else "NA"}"})
+                if self.microcontroller_handler:
+                    # Initiate light (named config resolved lazily on first use)
+                    if led_kwargs is None:
+                        led_kwargs = self.get_named_config("lights", light_config_name)
+                    response = self.microcontroller_handler.set_leds(**led_kwargs)
+                    self.logger.info("", extra={"event": "lights_set", "details": f"L1-{response.get("led1") if response else "NA"} L2-{response.get("led2") if response else "NA"} L3-{response.get("led3") if response else "NA"}"})
 
-            if self.camera_handler:
-                # Set camera settings
-                self.camera_handler.load_config(self.get_named_config("camera", cam_config_name))
-                # Flush buffer and let auto-settings converge
-                for _ in range(3):
-                    if self.microcontroller_handler:
-                        _ = self.microcontroller_handler.set_leds(**led_kwargs)
-                    for _ in range(5):
-                        _ = self.camera_handler.capture_image(cam_config_name="flush", light_config_name=light_config_name)
-                # Capture image
-                img = self.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
-                if img is None:
-                    self.logger.error("", extra={"event": "capture_failed", "details": f"Skipping save for {cam_config_name}/{light_config_name} - no frame captured"})
-                else:
-                    self.camera_handler.save_image(img, cam_config_name=save_cam_config_name, light_config_name=light_config_name)
+                if self.camera_handler:
+                    # Set camera settings
+                    self.camera_handler.load_config(self.get_named_config("camera", cam_config_name))
+                    # Flush buffer and let auto-settings converge
+                    for _ in range(3):
+                        if self.microcontroller_handler:
+                            _ = self.microcontroller_handler.set_leds(**led_kwargs)
+                        for _ in range(5):
+                            _ = self.camera_handler.capture_image(cam_config_name="flush", light_config_name=light_config_name)
+                    # Capture image
+                    img = self.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
+                    if img is None:
+                        self.logger.error("", extra={"event": "capture_failed", "details": f"Skipping save for {cam_config_name}/{light_config_name} - no frame captured"})
+                    else:
+                        self.camera_handler.save_image(img, cam_config_name=save_cam_config_name, light_config_name=light_config_name)
 
-            if capture_delay > 0:
-                time.sleep(capture_delay)
-
-        self.shutdown_capture()
+                if capture_delay > 0:
+                    time.sleep(capture_delay)
+        finally:
+            self.shutdown_capture()
 
     def shutdown_capture(self):
         """Turn the lights off and close the camera after a capture run."""
