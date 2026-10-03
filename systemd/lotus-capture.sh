@@ -34,16 +34,11 @@ log_system "routine_start" "Routine capture service started"
 cd /home/aau/lotus-pto-camera/
 PYTHON_BIN="./venv/bin/python3"
 
-EXTRA_FLAGS="--log-file $LOGFILE --run-id $RUN_ID"
-if [ "$DISABLE_UNIFI" = "1" ]; then
-    EXTRA_FLAGS="$EXTRA_FLAGS --disable_unifi"
-fi
-
 # Keep retrying until
 until [ $count -ge $MAX_RETRIES ]; do
     # Image acquisition begins
     # shellcheck disable=SC2086
-    $PYTHON_BIN main.py rig1 --output_path $OUTPUTDIR --log_level debug $EXTRA_FLAGS \
+    $PYTHON_BIN main.py rig1 --output_path $OUTPUTDIR --log_level debug --log-file $LOGFILE --run-id $RUN_ID \
     -c default demoLed1Full \
     -c default demoLed2Full \
     -c default demoLed3Full \
