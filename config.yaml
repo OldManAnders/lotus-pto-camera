@@ -111,6 +111,7 @@ camera_configs:
     <<: *default_camera_settings
     AutoTargetBrightness: 0.2
 
+  # Sample specfic crop settings for 4x4 grid of samples on the camera sensor (Note OFFSETS have to be divisible by 2)
   samplecrop: &sample_crop_settings
     <<: *default_camera_settings
     Width: 850
@@ -118,7 +119,7 @@ camera_configs:
 
   sample00:
     <<: *sample_crop_settings
-    OffsetX: 133
+    OffsetX: 134
     OffsetY: 52
     AutoOffsetX: 258
     AutoOffsetY: 177
@@ -132,7 +133,7 @@ camera_configs:
   
   sample20:
     <<: *sample_crop_settings
-    OffsetX: 1807
+    OffsetX: 1806
     OffsetY: 48
     AutoOffsetX: 1932
     AutoOffsetY: 173
@@ -140,7 +141,7 @@ camera_configs:
   sample30:
     <<: *sample_crop_settings
     OffsetX: 2666
-    OffsetY: 25
+    OffsetY: 26
     AutoOffsetX: 2791
     AutoOffsetY: 150
   
@@ -154,42 +155,42 @@ camera_configs:
   sample11:
     <<: *sample_crop_settings
     OffsetX: 984
-    OffsetY: 991
+    OffsetY: 990
     AutoOffsetX: 1109
     AutoOffsetY: 1116
   
   sample21:
     <<: *sample_crop_settings
-    OffsetX: 1811
+    OffsetX: 1812
     OffsetY: 984
     AutoOffsetX: 1936
     AutoOffsetY: 1109
   
   sample31:
     <<: *sample_crop_settings
-    OffsetX: 2627
-    OffsetY: 941
+    OffsetX: 2626
+    OffsetY: 942
     AutoOffsetX: 2752
     AutoOffsetY: 1066
   
   sample02:
     <<: *sample_crop_settings
     OffsetX: 140
-    OffsetY: 1815
+    OffsetY: 1816
     AutoOffsetX: 265
     AutoOffsetY: 1940
   
   sample12:
     <<: *sample_crop_settings
     OffsetX: 976
-    OffsetY: 1769
+    OffsetY: 1770
     AutoOffsetX: 1101
     AutoOffsetY: 1894
   
   sample22:
     <<: *sample_crop_settings
     OffsetX: 1800
-    OffsetY: 1757
+    OffsetY: 1758
     AutoOffsetX: 1925
     AutoOffsetY: 1882
   
@@ -202,7 +203,7 @@ camera_configs:
   
   sample03:
     <<: *sample_crop_settings
-    OffsetX: 133
+    OffsetX: 134
     OffsetY: 2698
     AutoOffsetX: 258
     AutoOffsetY: 2823
@@ -217,13 +218,13 @@ camera_configs:
   sample23:
     <<: *sample_crop_settings
     OffsetX: 1792
-    OffsetY: 2643
+    OffsetY: 2644
     AutoOffsetX: 1917
     AutoOffsetY: 2768
   
   sample33:
     <<: *sample_crop_settings
-    OffsetX: 2647
+    OffsetX: 2648
     OffsetY: 2698
     AutoOffsetX: 2772
     AutoOffsetY: 2823

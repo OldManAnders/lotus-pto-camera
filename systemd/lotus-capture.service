@@ -8,6 +8,8 @@ Type=oneshot
 WorkingDirectory=/home/aau/lotus-pto-camera
 ExecStart=/usr/bin/bash /home/aau/lotus-pto-camera/systemd/lotus-capture.sh
 User=root
+StandardOutput=journal
+SyslogIdentifier=lotus-capture
 
 # Retry once if the entire script fails
 Restart=on-failure

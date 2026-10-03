@@ -15,6 +15,7 @@ from tkinter import filedialog, messagebox, ttk
 import yaml
 
 from capture.controller import CaptureController, CaptureStep
+from utils.logging_config import configure_logging
 
 
 class CameraGuiApp:
@@ -71,10 +72,13 @@ class CameraGuiApp:
 
         self.enable_camera_var = tk.BooleanVar(value=True)
         self.enable_mc_var = tk.BooleanVar(value=True)
+        self.enable_unifi_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(frame, text="Enable Camera", variable=self.enable_camera_var).grid(
             row=1, column=0, sticky=tk.W, pady=2)
         ttk.Checkbutton(frame, text="Enable Microcontroller", variable=self.enable_mc_var).grid(
             row=1, column=1, sticky=tk.W, pady=2)
+        ttk.Checkbutton(frame, text="Enable UniFi", variable=self.enable_unifi_var).grid(
+            row=2, column=0, sticky=tk.W, pady=2)
 
     def _build_io_section(self, parent):
         frame = ttk.LabelFrame(parent, text=" Session & Storage ", padding="10")
@@ -357,6 +361,7 @@ class CameraGuiApp:
 
         os.makedirs(output_folder, exist_ok=True)
         self.log_threadsafe(f"--- Starting Capture Sequence ({session_name}) on rig '{rig}' ---")
+        configure_logging(level="DEBUG", rig=rig)
 
         self.cc = None
         try:
@@ -365,6 +370,7 @@ class CameraGuiApp:
                 config=self.config,
                 enable_camera=self.enable_camera_var.get(),
                 enable_microcontroller=self.enable_mc_var.get(),
+                enable_unifi=self.enable_unifi_var.get(),
                 output_path=os.path.join(output_folder, session_name),
                 log_level="debug",
             )
