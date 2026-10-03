@@ -238,6 +238,16 @@ class CameraHandler:
             self.logger.error(f"Camera settings update failed: {e}", extra={"event": "settings_update_error", "details": {"camera": self.name, "error": str(e)}}, exc_info=True)
             #self.try_reconnect()
 
+    def read_temperature(self):
+        """Best-effort read of the camera's internal temperature in °C.
+
+        Returns ``None`` on any failure; never raises.
+        """
+        try:
+            return self.camera.DeviceTemperature.Value
+        except Exception:
+            return None
+
     def get_camera_meta(self) -> dict:
         meta = {"settings_actual": {}}
         def _read(node_name):

@@ -163,21 +163,12 @@ class CaptureController():
         except Exception as e:
             self.logger.error(f"PoE power-off failed: {e}", extra={"event": "poe_control_failure", "details": {"error": str(e)}}, exc_info=True)
 
-    def _read_camera_temperature(self):
-        """Best-effort read of the camera's internal temperature; never raises."""
-        if self.camera_handler is None:
-            return None
-        try:
-            return self.camera_handler.camera.DeviceTemperature.Value
-        except Exception:
-            return None
-
     def _log_camera_temperature(self, logger=None):
         """Log the camera's internal temperature. Never raises."""
         if self.camera_handler is None:
             return
         logger = logger or self.logger
-        temperature = self._read_camera_temperature()
+        temperature = self.camera_handler.read_temperature()
         if temperature is None:
             logger.warning("Camera temperature unavailable", extra={"event": "camera_temperature_failed", "details": {}})
             return
@@ -227,7 +218,7 @@ class CaptureController():
             camera_meta = self.camera_handler.get_camera_meta()
         else:
             camera_meta = {"settings_actual": {}}
-        temp = self._read_camera_temperature()
+        temp = self.camera_handler.read_temperature()
         img = self.camera_handler.capture_image(cam_config_name=cam_config_name, light_config_name=light_config_name)
         if img is None:
             self.logger.error(f"No frame captured for {cam_config_name}/{light_config_name} - skipping save", extra={"event": "capture_failed", "details": {"camera_config": cam_config_name, "light_config": light_config_name}})
