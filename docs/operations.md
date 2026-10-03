@@ -61,8 +61,7 @@ timestamp,level,logger,component,event,details
 ```
 
 - `timestamp` is `YYYY-MM-DD HH:MM:SS`.
-- `level` is `TELEMETRY`, `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`.
-  `TELEMETRY` is a custom level below `DEBUG`, used for camera temperature.
+- `level` is `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`.
 - `logger` is the logger name, such as `main`, `capture.microcontroller`,
   `utils.unifi_poe_controller`, or `<rig>,Camera`.
 - `component` is the rig name for capture code, `Unifi` for the controller
@@ -88,7 +87,7 @@ Controller and orchestration (component is the rig name):
 | `poe_camera_warmup` | DEBUG | Waiting 10 s for the camera to boot. |
 | `exception` | ERROR | `start_rig` failed, with a flattened traceback. |
 | `wiper` | DEBUG | Lens wipe starting. |
-| `camera_temperature` | TELEMETRY | Camera temperature reading. |
+| `camera_temperature` | DEBUG | Camera temperature reading. |
 | `camera_temperature_failed` | WARNING | Temperature read failed. |
 | `capture` | INFO | Starting a capture step. |
 | `lights_set` | INFO | LED values applied, with the board's reply. |

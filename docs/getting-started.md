@@ -113,8 +113,7 @@ Useful options:
 - `--disable_camera` and `--disable_microcontroller` skip those devices. The
   PoE power-off step still talks to the UniFi controller, so it must be
   reachable even in a dry run.
-- `--log_level` sets verbosity (`debug`, `telemetry`, `info`, `warning`,
-  `error`, `critical`).
+- `--log_level` sets verbosity (`debug`, `info`, `warning`, `error`, `critical`).
 - `--capture_delay` inserts a delay in seconds between captures.
 - `--config` points at a different config file.
 

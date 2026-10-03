@@ -55,8 +55,8 @@ sequenceDiagram
     CC->>MH: wipe()
     MH->>ESP: POST /wiper (timeout 30s)
     ESP-->>MH: 200 OK
-    CC->>CH: camera.DeviceTemperature.Value
-    CC->>LOG: telemetry("camera_temperature", ...)
+    CC->>CH: read_temperature()
+    CC->>LOG: debug("camera_temperature", ...)
 
     loop each (camera_config, light_config) pair
         CC->>MH: set_leds(**light_config)
@@ -189,7 +189,6 @@ classDiagram
 
     class logging_config {
         <<module>>
-        +TELEMETRY = 15
         +configure_logging(level, logfile)
         +get_logger(name, component)
     }
