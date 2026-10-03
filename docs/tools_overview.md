@@ -1,5 +1,11 @@
 # Tools scripts
-This folder contains small utilities for exporting camera metadata, building composite images, and generating timelapse videos from captured image data.
+`tools/` contains composites, timelapses, crop selection, and camera-node dump scripts. Full usage is documented in [`docs/tools_overview.md`](docs/tools_overview.md):
+- `make_composits.py` — mean/median/percentile composite images.
+- `timelapse_generator.py` + `timelapse_generator_gui.py` — filtered timelapse videos.
+- `basler_export_nodes.py` — export GenICam nodes to XML/YAML/Markdown.
+- `get_crop_coordinates.py` — interactive crop-region selector to retrieve coordinates for crops and camera_configs
+- `generate_crops.sh` — batch timelapse generation for predefined crops.
+- `sync_push.sh` — sync captured image sets to another machine.
 
 ## basler_export_nodes.py
 This script connects to the first available Basler camera and exports the camera's GenICam nodes to XML, YAML, or Markdown. It is mainly used to inspect and document camera parameters and feature settings.
@@ -174,7 +180,26 @@ Or cropped to only be off a specific region (using top left x,y, width height bo
 python timelapse_generator.py ~/lotus-data/ ~/20260701_20260801.mp4 2026-07-01 2026-08-01 --crop 100 500 1200 1400
 ```
 
-## get_crop_coordinates
+## timelapse_generator_gui.py
+A Tkinter front end for `timelapse_generator.py`. It parses the input folder with `utils/parsing.py`, lets you filter by rig, camera configs, lighting configs, date range, and daily time windows, then renders the video from a background thread. The filter lists fill in after a Scan Options pass over the input folder.
+
+The panel has these sections:
+- Input & Output: source image folder and output video file.
+- Date Range: start and end dates in `YYYY-MM-DD`.
+- Filters: rig, plus multi-select camera and lighting config lists.
+- Time Periods: one or more daily `HH:MM` windows.
+- Video Options: FPS, scale, codec (`libx264`, `libx265`, `mpeg4`), preset, CRF, crop box, and verbose logging.
+- Overlay: text drawn onto the video.
+- Settings: export and import the whole form as JSON.
+
+Preview Match Count reports how many images match without rendering. GENERATE TIMELAPSE renders the video and reports progress.
+
+### Running
+```bash
+python3 tools/timelapse_generator_gui.py
+```
+
+## get_crop_coordinates.py
 It opens the selected image and lets the user click on the image to choose the top-left coordinate of a crop box. It also optionally highlights an inner ROI box and prints a ready-to-paste configuration block for use in config files or scripts.
 
 ### Arguments:
@@ -189,12 +214,12 @@ It opens the selected image and lets the user click on the image to choose the t
 ### Examples:
 Select a full crop region from an image without an ROI
 ```bash
-python tools/crop_selector.py image.png 850 850
+python tools/get_crop_coordinates.py image.png 850 850
 ```
 
 Select a crop box and also show a nested ROI region centered inside it
 ```bash
-python tools/crop_selector.py image.png 850 850 400 400
+python tools/get_crop_coordinates.py image.png 850 850 400 400
 ```
 
 Typical output after clicking a location in the image:
@@ -208,3 +233,35 @@ sample_01:
 ```
 
 This yaml format can be directly pasted in the camera config settings of the Config.yaml
+
+## sync_push.sh
+Copies a local image tree to another machine over SSH. It is written for one specific setup, and its own header warns that it is not general purpose, so edit the values at the top (`GATEWAY`, `MACHINE_B`) before using it.
+
+By default it does an inventory diff: it lists files on the remote and locally, diffs the two, and sends only the missing ones with `rsync --files-from`. `--full-scan` falls back to a plain recursive `rsync`. `--dry-run` prints what would transfer without copying. SSH is authenticated once through a ControlMaster with a ProxyJump through `GATEWAY`, so an MFA prompt only appears once.
+
+### Arguments:
+#### Positional
+- `<local_path>` is the source directory, which must exist.
+- `<destination_path>` is the absolute destination path on the remote machine.
+#### Optional
+- `--full-scan` runs a plain `rsync` full scan instead of the inventory diff.
+- `--dry-run` shows what would be transferred without copying.
+- `-h/--help` prints usage.
+
+Requires `ssh`, `rsync`, `find`, `sort`, and `comm` on the host.
+
+### Examples:
+Copy only the files missing on the remote machine
+```bash
+./tools/sync_push.sh /home/user/lotus-data /home/user/lotus-data
+```
+
+Preview the transfer
+```bash
+./tools/sync_push.sh /home/user/lotus-data /home/user/lotus-data --dry-run
+```
+
+Force a plain full scan
+```bash
+./tools/sync_push.sh /home/user/lotus-data /home/user/lotus-data --full-scan
+```

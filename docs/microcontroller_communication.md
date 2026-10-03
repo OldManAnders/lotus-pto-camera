@@ -1,6 +1,6 @@
 # Microcontroller Communication Overview
 The ESP32-C3 board (Ethernet, DM9051 PHY) hosts an HTTP server on port 80. 
-This file documents the routes the firmware implements — see `esp32c3wts320ethevo/esp32c3wts320ethevo.ino` and `esp32c3wts320ethevo/config.h`. 
+This file documents the routes the firmware implements — see `microcontroller_firmware/esp32c3wts320ethevo.ino` and `microcontroller_firmware/config.h`. 
 
 ## Firmware behavior
 - Transport is HTTP over Ethernet only (no WiFi). The board uses a static IP from `config.h` (default `192.168.1.101`, hostname `rig1_microcontroller`).
@@ -43,7 +43,7 @@ Does not return a body.
 
 ## Python handler
 `capture/microcontroller.py` wraps the endpoints using `requests`. 
-Construct with `MicrocontrollerHandler(ip, port=80, timeout=5, heartbeat_interval=10, name="NA,NA", verbose=False)`. 
+Construct with `MicrocontrollerHandler(ip, port=80, timeout=5, name="NA,NA", verbose=False)`. 
 HTTP failures are logged (via `utils/logging_config.py`) and return `None`; they do not raise.
 
 | Method                              | Endpoint used                    | Notes                                      |

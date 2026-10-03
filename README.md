@@ -1,54 +1,38 @@
 # LOTUS-PTO Camera System
-
 Automated image-capture system for the LOTUS-PTO project. Dedicated capture rigs photograph samples under controlled lighting on a private `192.168.1.x` network, and the collected time-series images are processed into composites and timelapses for analysis.
 
 Each rig is made up of:
 - **Basler ace 2 GigE camera** — powered over PoE, controlled via pypylon. Camera features/settings reference: [`docs/basler_camera_nodes.md`](docs/basler_camera_nodes.md).
-- **ESP32-C3 microcontroller** — drives three LED channels and a lens wiper over HTTP. Firmware lives in [`microcontroller/esp32c3wts320ethevo/`](microcontroller/esp32c3wts320ethevo/); full HTTP API: [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md).
+- **ESP32-C3 microcontroller** — drives three LED channels and a lens wiper over HTTP. Firmware lives in [`microcontroller_firmware/`](microcontroller_firmware/); full HTTP API: [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md).
+
+All rigs are controlled from a centralized setup which is made up of:
 - **UniFi switch** — powers cameras/microcontrollers and cycles PoE ports on/off.
-- **Capture machine** — run scheduled captures and store images; [`tools/`](tools/README.md) turns them into composites and timelapses.
+- **Capture machine** — run scheduled captures and store images; [`tools/`](docs/tools_overview.md) turns them into composites and timelapses.
+
+For Setup and installation see the Getting Started guide and Configuration guide below
+- [`docs/getting-started.md`](docs/getting-started.md): host setup, config, and a first capture.
+- [`docs/configuration.md`](docs/configuration.md): full `config.yaml` reference.
 
 ## Repository layout
-```
-main.py                     CLI entry point
-gui_capture.py              Tkinter GUI wrapper around CaptureController
-capture/                    CaptureController + CameraHandler (pypylon) + MicrocontrollerHandler (HTTP)
-config.yaml                 Central config: rigs, camera/light presets, network
-microcontroller/            ESP32-C3 firmware
-utils/                      Logging, UniFi PoE control, image filename parsing
-network/                    Ethernet / network setup scripts
-systemd/                    Service, timer, and install script for scheduled capture
-tools/                      Data processing scripts (see tools/README.md)
-```
+| Path | Description |
+| --- | --- |
+| `main.py` | CLI entry point |
+| `gui_capture.py` | Tkinter GUI wrapper around `CaptureController` |
+| `capture/` | `CaptureController`, `CameraHandler` (pypylon) and `MicrocontrollerHandler` (HTTP) |
+| `config.yaml` | Central config: rigs, camera/light presets, network |
+| `microcontroller_firmware/` | ESP32-C3 firmware |
+| `utils/` | Logging, UniFi PoE control, image filename parsing |
+| `network/` | Ethernet / network setup scripts |
+| `systemd/` | Service, timer, and install script for scheduled capture |
+| `tools/` | Data processing scripts (see docs/tools_overview.md) |
 
 ## How a capture works
-
 `main.py` runs one rig through a fixed sequence:
-
 1. Log into the UniFi API and power on the camera's PoE port (10 s warmup).
 2. Connect to the camera (pypylon, IP-based) and the microcontroller (HTTP).
 3. Trigger servo motor to wipe the lens.
 4. For each requested (camera config, light config) pair: set the LEDs, load the camera settings, flush the buffer so auto-exposure converges, capture and save the image.
 5. Turn the LEDs off, close the camera, and power off the PoE port.
-
-## Setup
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-```
-
-**Note:** `pypylon` requires the [Basler Pylon SDK](https://www.baslerweb.com/en/products/software/) installed on the host; the pip install alone is not enough.
-
-### Configuration (`config.yaml`)
-
-- `setups` — rig definitions (camera IP, PoE switch port, microcontroller IP/port).
-- `camera_configs` — named camera presets (note the plural; the YAML anchor inside `DEFAULT` is `camera_config`).
-- `light_configs` — named lighting presets (LED strengths 0–255).
-- `network` — UniFi controller address/credentials and switch MAC.
-
-Named presets inherit from `DEFAULT` via YAML anchors, so a preset only needs to override what changes.
 
 ## Running a capture
 
@@ -82,17 +66,10 @@ Example: `20260601-143022_rig1_default_demoAll.png`
 
 The GUI writes each run into a session subdirectory, `<output_path>/<session>/images/YYYY-MM-DD/`, which keeps manual captures separate from the scheduled automatic captures (which write straight into the automatic output root). Pointing the GUI's Output Folder at that automatic root is a deliberate choice to intermingle them.
 
-## Data processing
-
-`tools/` contains composites, timelapses, crop selection, and camera-node dump scripts. Full usage is documented in [`tools/README.md`](tools/README.md):
-- `make_composits.py` — mean/median/percentile composite images.
-- `timelapse_generator.py` + `timelapse_generator_gui.py` — filtered timelapse videos.
-- `basler_export_nodes.py` — export GenICam nodes to XML/YAML/Markdown.
-- `get_crop_coordinates.py` — interactive crop-region selector to retrieve coordinates for crops and camera_configs
-- `generate_crops.sh` — batch timelapse generation for predefined crops.
-- `sync_push.sh` — sync captured image sets to another machine.
-
-## Further reading
-- [`docs/basler_camera_nodes.md`](docs/basler_camera_nodes.md) — camera feature reference.
-- [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md) — microcontroller HTTP API.
-- [`tools/README.md`](tools/README.md) — data processing tools.
+## Additional Documentation
+- [`docs/firmware.md`](docs/firmware.md): ESP32-C3 build, flash, and per-rig `config.h`.
+- [`docs/operations.md`](docs/operations.md): systemd schedule, logs, and troubleshooting.
+- [`docs/basler_camera_nodes.md`](docs/basler_camera_nodes.md): camera features reference doc.
+- [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md): microcontroller HTTP API.
+- [`docs/tools_overview.md`](docs/tools_overview.md): data processing tools.
+- [`docs/architecture.md`](docs/architecture.md): call flow and object model.

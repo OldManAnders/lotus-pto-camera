@@ -1,5 +1,5 @@
 DEFAULT: 
-  camera_config: &default_camera_settings # See camera_variables.md documentation
+  camera_config: &default_camera_settings # See docs/basler_camera_nodes.md documentation
       # Image format settings
       Width: 3548
       Height: 3548
