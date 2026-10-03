@@ -1,7 +1,7 @@
 """
 Demo GUI for the LOTUS-PTO capture rig.
 
-This panel is a thin wrapper around `CaptureController` (see main.py): it builds a
+This panel is a thin wrapper around `CaptureController` (see capture/controller.py): it builds a
 *sequence* of capture steps (camera config + light setting) and then runs them all
 through the same rig setup/teardown path used by the CLI script. Light settings for
 each step can either be a named config pulled from config.yaml's `light_configs`, or
@@ -14,7 +14,7 @@ from tkinter import filedialog, messagebox, ttk
 
 import yaml
 
-from main import CaptureController, CaptureStep
+from capture.controller import CaptureController, CaptureStep
 
 
 class CameraGuiApp:
@@ -310,7 +310,7 @@ class CameraGuiApp:
     # ------------------------------------------------------------------ #
     # Capture execution
     # ------------------------------------------------------------------ #
-    def _to_capture_step(self, step, session_name):
+    def _to_capture_step(self, step):
         """Convert a GUI sequence entry into a CaptureController CaptureStep."""
         cam_config = step["cam_config"]
         if step["light_type"] == "named":
@@ -318,13 +318,12 @@ class CameraGuiApp:
             leds = None
         else:
             led_values = step["leds"]
-            light_config = f"manual_{led_values[0]}_{led_values[1]}_{led_values[2]}"
+            light_config = f"manual-{led_values[0]}-{led_values[1]}-{led_values[2]}"
             leds = {"led1": led_values[0], "led2": led_values[1], "led3": led_values[2]}
         return CaptureStep(
             camera_config=cam_config,
             light_config=light_config,
-            leds=leds,
-            save_camera_config=f"{session_name}_{cam_config}",
+            leds=leds
         )
 
     def run_sequence_threaded(self):
@@ -366,7 +365,7 @@ class CameraGuiApp:
                 config=self.config,
                 enable_camera=self.enable_camera_var.get(),
                 enable_microcontroller=self.enable_mc_var.get(),
-                output_path=output_folder,
+                output_path=os.path.join(output_folder, session_name),
                 log_level="debug",
             )
 
@@ -376,7 +375,7 @@ class CameraGuiApp:
             self.log_threadsafe("Preparing for capture (wipe + buffer flush)...")
             self.cc.prepare_for_capture()
 
-            steps = [self._to_capture_step(step, session_name) for step in self.sequence]
+            steps = [self._to_capture_step(step) for step in self.sequence]
             self.log_threadsafe(f"Running capture sequence ({len(steps)} step(s))...")
             self.cc.run_capture_sequence(steps)
 
