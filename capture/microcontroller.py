@@ -3,13 +3,11 @@ import requests
 from utils.logging_config import get_logger
 
 class MicrocontrollerHandler:
-    def __init__(self, ip, port=80, timeout=5, heartbeat_interval=10, name="NA,NA", verbose=False) -> None:
+    def __init__(self, ip, port=80, timeout=5, name="NA,NA", verbose=False) -> None:
         self.name = name
         self.ip = ip
         self.port = port
         self.timeout = timeout
-        
-        self.heartbeat_interval = heartbeat_interval
         self.verbose = verbose
         self._last_ping_ok = False
         self.logger = get_logger(__name__, component=self.name.split(",")[0])

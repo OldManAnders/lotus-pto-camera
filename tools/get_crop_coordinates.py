@@ -54,7 +54,7 @@ def prompt_sample_name():
 
 def main():
     if len(sys.argv) not in (4, 6):
-        print("Usage: python crop_selector.py <image_path> <box_width> <box_height> [roi_width roi_height]")
+        print("Usage: python3 tools/get_crop_coordinates.py <image_path> <box_width> <box_height> [roi_width roi_height]")
         sys.exit(1)
 
     # Parse command-line arguments

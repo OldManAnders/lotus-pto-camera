@@ -16,7 +16,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("LOTUS-PTO Camera Rig capture")
     parser.add_argument('rig', help="Choice of camera to capture from")
     parser.add_argument('--config', default="./config.yaml", type=str, help="path to main config file")
-    parser.add_argument('-c', nargs=2, action='append', help="Provide the name of a camera config followed by the name of a lighting config [See available configs with --list_configs]")
+    parser.add_argument('-c', nargs=2, action='append', help="Provide the name of a camera config followed by the name of a lighting config (see camera_configs and light_configs in config.yaml)")
     parser.add_argument('--output_path', type=str, default="/home/aau/lotus-data/")
     parser.add_argument('--disable_camera', action="store_true", default=False, help="Disable camera capture")
     parser.add_argument('--disable_microcontroller', action="store_true", default=False, help="Disable microcontroller calls")
