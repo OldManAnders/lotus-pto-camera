@@ -15,6 +15,7 @@ import threading
 import tkinter as tk
 from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
+from typing import Any, Callable, Dict, List, Optional
 
 # Make the project root and this script's folder importable regardless of
 # how the script is launched (utils lives in the root, timelapse_generator here).
@@ -33,11 +34,19 @@ PRESETS = ["ultrafast", "superfast", "veryfast", "faster", "fast", "medium",
 class _LogHandler(logging.Handler):
     """Route logging records to a GUI callback (safe across threads)."""
 
-    def __init__(self, callback):
+    def __init__(self, callback: Callable[[str], None]) -> None:
+        """Store the callback used to deliver formatted log messages.
+
+        Args:
+            callback: Callable invoked with each pre-formatted log line. It is
+                expected to be thread-safe (the GUI ``log`` schedules onto the
+                Tk main loop).
+        """
         super().__init__()
         self.callback = callback
 
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
+        """Format ``record`` and forward it to the callback."""
         try:
             self.callback(f"[{record.levelname}] {record.getMessage()}")
         except Exception:
@@ -45,8 +54,23 @@ class _LogHandler(logging.Handler):
 
 
 class TimelapseGuiApp:
+    """Tkinter GUI wrapper around ``TimelapseGenerator``.
 
-    def __init__(self, root):
+    Provides folder selection, record filtering (rig / camera / lighting / date
+    range / daily time windows), ffmpeg export configuration, JSON settings
+    import/export, and runs previews and generation on background threads so the
+    UI stays responsive.
+
+    Args:
+        root: The root ``tk.Tk`` window to populate.
+    """
+
+    def __init__(self, root: Any) -> None:
+        """Build the widgets and apply the default settings.
+
+        Args:
+            root: The root ``tk.Tk`` window to populate.
+        """
         self.root = root
         self.root.title("Timelapse Generator")
         self.root.geometry("760x920")
@@ -64,7 +88,8 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Layout
     # ------------------------------------------------------------------ #
-    def _build_scrollable_layout(self):
+    def _build_scrollable_layout(self) -> None:
+        """Create the scrollable canvas and build every section into it."""
         canvas = tk.Canvas(self.root, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self.root, orient="vertical", command=canvas.yview)
         canvas.configure(yscrollcommand=scrollbar.set)
@@ -78,7 +103,8 @@ class TimelapseGuiApp:
         canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
         # Mouse wheel scrolling
-        def _on_mousewheel(event):
+        def _on_mousewheel(event: Any) -> None:
+            """Scroll the canvas by one unit per wheel notch."""
             canvas.yview_scroll(int(-event.delta / 120), "units")
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
@@ -92,7 +118,8 @@ class TimelapseGuiApp:
         self._build_run_section(main_frame)
         self._build_log_section(main_frame)
 
-    def _build_io_section(self, parent):
+    def _build_io_section(self, parent: Any) -> None:
+        """Build the input/output folder selection section."""
         frame = ttk.LabelFrame(parent, text=" Input & Output ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -109,7 +136,8 @@ class TimelapseGuiApp:
         ttk.Button(frame, text="Browse...", command=self.browse_output, width=10).grid(
             row=1, column=2, pady=2)
 
-    def _build_date_section(self, parent):
+    def _build_date_section(self, parent: Any) -> None:
+        """Build the start/end date range section."""
         frame = ttk.LabelFrame(parent, text=" Date Range ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -121,7 +149,8 @@ class TimelapseGuiApp:
         self.end_ent = ttk.Entry(frame, width=14)
         self.end_ent.grid(row=0, column=3, sticky=tk.W, pady=2, padx=5)
 
-    def _build_filter_section(self, parent):
+    def _build_filter_section(self, parent: Any) -> None:
+        """Build the rig/camera/lighting filter section."""
         frame = ttk.LabelFrame(parent, text=" Filters ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -153,7 +182,8 @@ class TimelapseGuiApp:
         self.lighting_lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         light_scroll.pack(side=tk.RIGHT, fill=tk.Y)
 
-    def _build_time_period_section(self, parent):
+    def _build_time_period_section(self, parent: Any) -> None:
+        """Build the daily time-window list section."""
         frame = ttk.LabelFrame(parent, text=" Time Periods (daily time windows) ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -171,7 +201,8 @@ class TimelapseGuiApp:
         ttk.Button(frame, text="Remove Selected", command=self.remove_time_period).grid(
             row=1, column=4, padx=(5, 0), sticky=tk.N)
 
-    def _build_video_section(self, parent):
+    def _build_video_section(self, parent: Any) -> None:
+        """Build the ffmpeg video options section."""
         frame = ttk.LabelFrame(parent, text=" Video Options ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -211,7 +242,8 @@ class TimelapseGuiApp:
         ttk.Checkbutton(frame, text="Verbose Logging", variable=self.verbose_var).grid(
             row=3, column=2, columnspan=2, sticky=tk.W, pady=(6, 0))
 
-    def _build_overlay_section(self, parent):
+    def _build_overlay_section(self, parent: Any) -> None:
+        """Build the overlay text section."""
         frame = ttk.LabelFrame(parent, text=" Overlay ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -220,7 +252,8 @@ class TimelapseGuiApp:
         self.overlay_ent.grid(row=0, column=1, sticky=tk.EW, pady=2, padx=5)
         frame.columnconfigure(1, weight=1)
 
-    def _build_settings_section(self, parent):
+    def _build_settings_section(self, parent: Any) -> None:
+        """Build the JSON settings import/export section."""
         frame = ttk.LabelFrame(parent, text=" Settings ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -229,7 +262,8 @@ class TimelapseGuiApp:
         ttk.Button(frame, text="Import JSON", command=self.import_settings).pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 0), ipady=2)
 
-    def _build_run_section(self, parent):
+    def _build_run_section(self, parent: Any) -> None:
+        """Build the preview/generate buttons, progress bar and status label."""
         frame = ttk.Frame(parent)
         frame.pack(fill=tk.X, pady=10)
 
@@ -246,7 +280,8 @@ class TimelapseGuiApp:
         self.status_lbl = ttk.Label(parent, text="Ready")
         self.status_lbl.pack(fill=tk.X)
 
-    def _build_log_section(self, parent):
+    def _build_log_section(self, parent: Any) -> None:
+        """Build the read-only log panel."""
         frame = ttk.LabelFrame(parent, text=" Logs ", padding="5")
         frame.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
 
@@ -254,7 +289,8 @@ class TimelapseGuiApp:
                                 background="#f0f0f0")
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
-    def _set_defaults(self):
+    def _set_defaults(self) -> None:
+        """Initialise the entries and comboboxes with sensible defaults."""
         today = datetime.now().strftime("%Y-%m-%d")
         self.start_ent.insert(0, today)
         self.end_ent.insert(0, today)
@@ -271,13 +307,15 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Browse helpers
     # ------------------------------------------------------------------ #
-    def browse_input(self):
+    def browse_input(self) -> None:
+        """Prompt for an input image folder and write it into the entry."""
         selected = filedialog.askdirectory(title="Select input image folder")
         if selected:
             self.input_ent.delete(0, tk.END)
             self.input_ent.insert(0, selected)
 
-    def browse_output(self):
+    def browse_output(self) -> None:
+        """Prompt for an output video path and write it into the entry."""
         selected = filedialog.asksaveasfilename(
             title="Save timelapse as", defaultextension=".mp4",
             filetypes=[("Video files", "*.mp4 *.mkv *.avi"), ("All files", "*.*")])
@@ -288,7 +326,8 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Settings (JSON import/export)
     # ------------------------------------------------------------------ #
-    def export_settings(self):
+    def export_settings(self) -> None:
+        """Write the current GUI settings to a user-chosen JSON file."""
         path = filedialog.asksaveasfilename(
             title="Export settings", defaultextension=".json",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
@@ -301,7 +340,8 @@ class TimelapseGuiApp:
         except Exception as e:
             messagebox.showerror("Export Error", f"Could not save settings:\n{e}")
 
-    def import_settings(self):
+    def import_settings(self) -> None:
+        """Load settings from a user-chosen JSON file and apply them."""
         path = filedialog.askopenfilename(
             title="Import settings", filetypes=[("JSON files", "*.json"), ("All files", "*.*")])
         if not path:
@@ -320,7 +360,13 @@ class TimelapseGuiApp:
         except Exception as e:
             messagebox.showerror("Import Error", f"Could not apply settings:\n{e}")
 
-    def _collect_settings(self):
+    def _collect_settings(self) -> Dict[str, Any]:
+        """Collect the current GUI state into a JSON-serialisable dict.
+
+        Returns:
+            A mapping of settings keys (paths, filters, video options, crop,
+            overlay and verbose flag) suitable for ``json.dump``.
+        """
         crop = None
         crop_vals = [self.crop_x_ent.get().strip(), self.crop_y_ent.get().strip(),
                      self.crop_w_ent.get().strip(), self.crop_h_ent.get().strip()]
@@ -351,8 +397,14 @@ class TimelapseGuiApp:
             "verbose": self.verbose_var.get(),
         }
 
-    def _apply_settings(self, data):
-        def _set(entry, value):
+    def _apply_settings(self, data: Dict[str, Any]) -> None:
+        """Apply a settings dict (from ``_collect_settings``) to the GUI.
+
+        Args:
+            data: Settings mapping loaded from a JSON file.
+        """
+        def _set(entry: Any, value: Any) -> None:
+            """Replace an Entry widget's contents with ``value``."""
             entry.delete(0, tk.END)
             entry.insert(0, str(value))
 
@@ -412,7 +464,15 @@ class TimelapseGuiApp:
         _set(self.overlay_ent, data.get("overlay", ""))
         self.verbose_var.set(bool(data.get("verbose", False)))
 
-    def _populate_and_select(self, listbox, options, selected):
+    def _populate_and_select(self, listbox: Any, options: List[str],
+                             selected: List[str]) -> None:
+        """Fill a listbox and select the entries present in ``selected``.
+
+        Args:
+            listbox: The ``tk.Listbox`` to populate.
+            options: Values to insert, in order.
+            selected: Subset of ``options`` that should be selected.
+        """
         listbox.delete(0, tk.END)
         selected = set(selected)
         for i, opt in enumerate(options):
@@ -423,14 +483,16 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Scan / filter options
     # ------------------------------------------------------------------ #
-    def scan_options(self):
+    def scan_options(self) -> None:
+        """Validate the input folder and start an option scan in the background."""
         if not self.input_ent.get().strip():
             messagebox.showerror("Error", "Select an input folder first.")
             return
         self._set_busy(True)
         threading.Thread(target=self._scan_options_safe, daemon=True).start()
 
-    def _scan_options_safe(self):
+    def _scan_options_safe(self) -> None:
+        """Load records off the UI thread and populate the filter options."""
         try:
             input_dir = self.input_ent.get().strip()
             self.log(f"Scanning '{input_dir}' for available filter options...")
@@ -444,7 +506,16 @@ class TimelapseGuiApp:
         finally:
             self.root.after(0, self._set_busy, False)
 
-    def _populate_filter_options(self, rigs, cams, lights, total):
+    def _populate_filter_options(self, rigs: List[str], cams: List[str],
+                                 lights: List[str], total: int) -> None:
+        """Replace the rig/camera/lighting filter widgets with scanned values.
+
+        Args:
+            rigs: Available camera rigs.
+            cams: Available camera configuration names.
+            lights: Available lighting configuration names.
+            total: Total number of timestamped images scanned.
+        """
         self.rig_cmb["values"] = ["All"] + rigs
         self.rig_cmb.current(0)
         self.camera_lb.delete(0, tk.END)
@@ -459,7 +530,8 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Time period helpers
     # ------------------------------------------------------------------ #
-    def add_time_period(self):
+    def add_time_period(self) -> None:
+        """Validate the HH:MM entries and append them to the time-period list."""
         start = self.tp_start_ent.get().strip()
         end = self.tp_end_ent.get().strip()
         if not start or not end:
@@ -476,7 +548,8 @@ class TimelapseGuiApp:
         self.tp_start_ent.delete(0, tk.END)
         self.tp_end_ent.delete(0, tk.END)
 
-    def remove_time_period(self):
+    def remove_time_period(self) -> None:
+        """Remove the selected time period, if any."""
         sel = self.time_period_list.curselection()
         if not sel:
             return
@@ -487,11 +560,33 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Parse / filter pipeline
     # ------------------------------------------------------------------ #
-    def _selected(self, listbox):
+    def _selected(self, listbox: Any) -> List[str]:
+        """Return the currently selected entries of a listbox.
+
+        Args:
+            listbox: The ``tk.Listbox`` to query.
+
+        Returns:
+            The selected values in listbox order.
+        """
         indices = listbox.curselection()
         return [listbox.get(i) for i in indices]
 
-    def _load_records(self, logger=None):
+    def _load_records(
+        self, logger: Optional[logging.Logger] = None
+    ) -> List[Any]:
+        """Parse (and cache) the image records for the current input folder.
+
+        Args:
+            logger: Optional logger forwarded to
+                ``utils.parsing.parse_images``.
+
+        Returns:
+            The parsed records for the input folder.
+
+        Raises:
+            ValueError: If no input folder is set.
+        """
         input_dir = self.input_ent.get().strip()
         if not input_dir:
             raise ValueError("Input folder is required.")
@@ -500,7 +595,21 @@ class TimelapseGuiApp:
             self._cache_input_dir = input_dir
         return self._records_cache
 
-    def _parse_and_filter(self, logger=None):
+    def _parse_and_filter(
+        self, logger: Optional[logging.Logger] = None
+    ) -> List[Any]:
+        """Load records and apply the current rig/camera/date/time filters.
+
+        Args:
+            logger: Optional logger forwarded to the parsing and filtering calls.
+
+        Returns:
+            The matching records sorted by timestamp.
+
+        Raises:
+            ValueError: If the input folder is missing, the date range is not in
+                ``YYYY-MM-DD`` format, or no timestamped images are found.
+        """
         input_dir = self.input_ent.get().strip()
         if not input_dir:
             raise ValueError("Input folder is required.")
@@ -541,7 +650,12 @@ class TimelapseGuiApp:
         self._filtered_records.sort(key=lambda r: r.timestamp)
         return self._filtered_records
 
-    def _build_logger(self):
+    def _build_logger(self) -> logging.Logger:
+        """Build a GUI-attached logger at DEBUG or INFO per the verbose flag.
+
+        Returns:
+            A logger whose records are forwarded to the GUI log panel.
+        """
         logger = logging.getLogger("timelapse_generator_gui")
         logger.handlers.clear()
         handler = _LogHandler(self.log)
@@ -554,10 +668,12 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Preview / generate
     # ------------------------------------------------------------------ #
-    def preview_threaded(self):
+    def preview_threaded(self) -> None:
+        """Run the filter preview on a background thread."""
         threading.Thread(target=self._preview_safe, daemon=True).start()
 
-    def _preview_safe(self):
+    def _preview_safe(self) -> None:
+        """Parse and filter records, then report the match count to the user."""
         try:
             records = self._parse_and_filter(logger=self._build_logger())
             count = len(records)
@@ -567,14 +683,16 @@ class TimelapseGuiApp:
         except Exception as e:
             self.root.after(0, lambda err=e: messagebox.showerror("Preview Error", str(err)))
 
-    def generate_threaded(self):
+    def generate_threaded(self) -> None:
+        """Validate the output path and start generation on a background thread."""
         if not self.output_ent.get().strip():
             messagebox.showerror("Error", "Output file is required.")
             return
         self._set_busy(True)
         threading.Thread(target=self._generate_safe, daemon=True).start()
 
-    def _generate_safe(self):
+    def _generate_safe(self) -> None:
+        """Filter records and export the timelapse, reporting errors to the user."""
         try:
             logger = self._build_logger()
             records = self._parse_and_filter(logger=logger)
@@ -597,7 +715,17 @@ class TimelapseGuiApp:
         finally:
             self.root.after(0, self._on_generate_done)
 
-    def _video_params(self):
+    def _video_params(self) -> Dict[str, Any]:
+        """Validate and collect the ffmpeg export parameters.
+
+        Returns:
+            Keyword arguments for ``TimelapseGenerator.export`` (fps, scale,
+            codec, preset, crf, crop and overlay text).
+
+        Raises:
+            ValueError: If fps/scale/crf are not numeric, or the crop values are
+                incomplete or not integers.
+        """
         try:
             fps = int(self.fps_spin.get())
             scale = float(self.scale_ent.get())
@@ -626,20 +754,38 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Progress / status
     # ------------------------------------------------------------------ #
-    def _on_progress(self, frame, total):
+    def _on_progress(self, frame: int, total: int) -> None:
+        """Update the progress bar from the export thread.
+
+        Args:
+            frame: Index of the frame just rendered.
+            total: Total number of frames to render.
+        """
         pct = (frame / total * 100) if total else 0
         self.root.after(0, lambda: self._set_progress(pct, f"Rendering frame {frame}/{total}"))
 
-    def _set_progress(self, pct, text):
+    def _set_progress(self, pct: float, text: str) -> None:
+        """Set the progress bar value and the status label text.
+
+        Args:
+            pct: Progress percentage in the range 0-100.
+            text: Status text to display.
+        """
         self.progress["value"] = pct
         self.status_lbl.config(text=text)
 
-    def _on_generate_done(self):
+    def _on_generate_done(self) -> None:
+        """Reset the controls and progress bar after generation finishes."""
         self._set_busy(False)
         self.progress["value"] = 0
         self.status_lbl.config(text="Ready")
 
-    def _set_busy(self, busy):
+    def _set_busy(self, busy: bool) -> None:
+        """Enable or disable the preview/generate buttons.
+
+        Args:
+            busy: True to disable the buttons while a task runs.
+        """
         state = "disabled" if busy else "normal"
         for widget in (self.generate_btn, self.preview_btn):
             widget.config(state=state)
@@ -647,8 +793,14 @@ class TimelapseGuiApp:
     # ------------------------------------------------------------------ #
     # Logging
     # ------------------------------------------------------------------ #
-    def log(self, message):
-        def _append():
+    def log(self, message: str) -> None:
+        """Append a line to the on-screen log from any thread.
+
+        Args:
+            message: Text to append.
+        """
+        def _append() -> None:
+            """Append the message on the Tk main loop."""
             self.log_text.config(state="normal")
             self.log_text.insert(tk.END, f"{message}\n")
             self.log_text.see(tk.END)

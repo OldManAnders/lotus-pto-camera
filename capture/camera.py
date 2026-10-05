@@ -1,3 +1,12 @@
+"""pypylon-based adapter for the Basler camera on a LOTUS-PTO rig.
+
+Wraps a pypylon ``InstantCamera`` with a small, rig-aware surface: opening and
+reconnecting the device, applying named camera presets, capturing frames as BGR
+arrays, and reading device state for the capture metadata sidecar.
+"""
+from typing import Any, Callable, Dict, Optional, Tuple
+
+import numpy as np
 from pypylon import pylon
 import cv2, time, threading, os, yaml, logging, json
 from utils.logging_config import get_logger
@@ -46,7 +55,41 @@ SETTINGS_NODES = [
 ]
 
 class CameraHandler:
-    def __init__(self, config=None, ip=None, rig="", output_folder="./captured_images") -> None:
+    """Adapter around a single Basler camera.
+
+    Owns the pypylon device, applies named camera presets, captures frames as
+    BGR arrays, and exposes device state for the metadata sidecar. A mutex
+    serializes grabs against the shared pylon camera object.
+
+    Attributes:
+        output_folder: Root directory for saved images.
+        ip: Camera IP address.
+        rig: Rig identifier used for logging context.
+        logger: Logger adapter carrying component/rig context.
+        camera: Open pylon ``InstantCamera`` instance.
+        camera_mutex: Lock serializing grab operations.
+        last_config: Most recently applied preset, used on reconnect.
+        config: Preset currently applied to the device.
+        converter: pylon image format converter targeting BGR8 packed output.
+    """
+
+    def __init__(self, config: Optional[Any] = None, ip: Optional[str] = None,
+                 rig: str = "", output_folder: str = "./captured_images") -> None:
+        """Open the camera and prepare the BGR converter.
+
+        When ``ip`` is ``None`` the first available device is opened. The output
+        folder is created if missing, and ``config`` (when supplied) is applied
+        via ``load_config``.
+
+        Args:
+            config: Optional preset as a dict or a YAML file path.
+            ip: Camera IP address; ``None`` selects the first available device.
+            rig: Rig identifier used for logging context.
+            output_folder: Directory where captured images are written.
+
+        Raises:
+            Exception: If the camera cannot be opened.
+        """
         # store output folder path
         self.output_folder = output_folder
         os.makedirs(self.output_folder, exist_ok=True)
@@ -85,12 +128,44 @@ class CameraHandler:
         self.converter.OutputPixelFormat = pylon.PixelType_BGR8packed
         self.converter.OutputBitAlignment = pylon.OutputBitAlignment_MsbAligned
 
-    def convert_to_bgr(self, grab_result):
+    def convert_to_bgr(self, grab_result: Any) -> np.ndarray:
+        """Convert a pylon grab result into a BGR array.
+
+        Args:
+            grab_result: pylon grab result to convert.
+
+        Returns:
+            BGR image as a NumPy array.
+        """
         PixelFormat = grab_result.PixelType
         return self.converter.Convert(grab_result).GetArray()
 
-    def save_image(self, img, cam_config_name=None, light_config_name=None, full_path="", timestamp=None, metadata=None):
-        """Returns (image_path, json_path_or_None)."""
+    def save_image(self, img: np.ndarray, cam_config_name: Optional[str] = None,
+                   light_config_name: Optional[str] = None, full_path: str = "",
+                   timestamp: Optional[str] = None,
+                   metadata: Optional[Dict[str, Any]] = None
+                   ) -> Tuple[Optional[str], Optional[str]]:
+        """Write a captured frame and optional sidecar metadata to disk.
+
+        When ``full_path`` is empty the image is written under
+        ``<output_folder>/images/<YYYY-MM-DD>/`` derived from ``timestamp``. A
+        JSON sidecar is written next to the image when ``metadata`` is given.
+
+        Args:
+            img: BGR image to save.
+            cam_config_name: Camera preset name used in the filename.
+            light_config_name: Lighting preset name used in the filename.
+            full_path: Destination directory; derived from ``timestamp`` when
+                empty.
+            timestamp: Capture timestamp in ``%Y%m%d-%H%M%S`` form; defaults to
+                the current time.
+            metadata: Optional metadata mapping written as a ``.json`` sidecar.
+
+        Returns:
+            Tuple ``(image_path, json_path)``. ``image_path`` is ``None`` when
+            the image could not be written; ``json_path`` is ``None`` when no
+            metadata was supplied or the sidecar write failed.
+        """
         if timestamp is None:
             timestamp = time.strftime("%Y%m%d-%H%M%S")
         filename = f"{timestamp}_{self.rig}_{cam_config_name}_{light_config_name}.png"
@@ -115,16 +190,23 @@ class CameraHandler:
                 json_path = None
         return (image_path, json_path)
 
-    def capture_image(self, cam_config_name="default", light_config_name="default") -> None:
-        """
-        Captures a single frame from the Basler camera and saves it to disk.
-        If called by the user, prompts for saving or viewing the image.
+    def capture_image(self, cam_config_name: str = "default",
+                      light_config_name: str = "default") -> Optional[np.ndarray]:
+        """Grab a single frame and return it as a BGR array.
+
+        This method does not save the frame to disk and does not prompt the
+        user; the caller owns persistence. It waits up to 5000 ms for a frame
+        via ``RetrieveResult``. On a grab failure or any pylon error the failure
+        is logged, ``try_reconnect`` is invoked, and ``None`` is returned.
 
         Args:
-            path(str): Path to where the user will save the image 
+            cam_config_name: Camera preset name, accepted for call-site
+                uniformity with the rest of the pipeline (unused by the grab).
+            light_config_name: Lighting preset name, accepted for call-site
+                uniformity with the rest of the pipeline (unused by the grab).
 
-        Raises:
-            TimeoutException: If the camera fails to return a frame within 5000ms.
+        Returns:
+            BGR image as a NumPy array, or ``None`` if the grab failed.
         """
 
         try:
@@ -169,21 +251,35 @@ class CameraHandler:
         except Exception as e:
             self.logger.error(f"Camera reconnect failed: {e}", extra={"event": "reconnect_failed", "details": {"rig": self.rig, "error": str(e)}}, exc_info=True)
 
-    def sleep(self):
-        """Puts the camera into standby mode to save power. Can be used between captures."""
+    def sleep(self) -> None:
+        """Put the sensor into standby to save power between captures."""
         self.camera.BslSensorStandby.Execute()
         self.logger.debug(f"Camera put into standby mode: {self.rig}", extra={"event": "camera_sleep", "details": {"rig": self.rig}})
 
-    def wake(self):
-        """Wakes the camera from standby mode."""
+    def wake(self) -> None:
+        """Wake the sensor from standby."""
         self.camera.BslSensorOn.Execute()
         self.logger.debug(f"Camera woken up: {self.rig}", extra={"event": "camera_wake", "details": {"rig": self.rig}})
 
-    def close(self):
+    def close(self) -> None:
+        """Close the camera connection."""
         self.camera.Close()
         self.logger.info(f"Camera stopped: {self.rig}", extra={"event": "camera_stopped", "details": {"rig": self.rig}})
 
-    def load_config(self, config):
+    def load_config(self, config: Any) -> None:
+        """Apply a camera preset to the device.
+
+        Accepts either a preset dict or a path to a YAML file holding one under
+        ``DEFAULT.camera_config``. The preset is remembered so
+        ``try_reconnect`` can restore it. Errors raised while writing individual
+        device nodes are logged but not propagated.
+
+        Args:
+            config: Preset mapping or path to a YAML preset file.
+
+        Raises:
+            TypeError: If ``config`` is neither a ``str`` nor a ``dict``.
+        """
         self.last_config = config
         # Convert string to dict
         if type(config) == str:
@@ -237,19 +333,24 @@ class CameraHandler:
             self.logger.error(f"Camera settings update failed: {e}", extra={"event": "settings_update_error", "details": {"rig": self.rig, "error": str(e)}}, exc_info=True)
             #self.try_reconnect()
 
-    def read_temperature(self):
-        """Best-effort read of the camera's internal temperature in °C.
-
-        Returns ``None`` on any failure; never raises.
-        """
+    def read_temperature(self) -> Optional[float]:
+        """Read the camera's internal temperature."""
         try:
             return self.camera.DeviceTemperature.Value
         except Exception:
             return None
 
-    def get_camera_meta(self) -> dict:
+    def get_camera_meta(self) -> Dict[str, Any]:
+        """Collect the current values of the tracked camera settings nodes.
+
+        Returns:
+            Mapping with a single ``settings_actual`` key whose value maps every
+            node in ``SETTINGS_NODES`` to its current value, stringified when
+            not JSON-serializable, or ``None`` when the node is unreadable.
+        """
         meta = {"settings_actual": {}}
-        def _read(node_name):
+        def _read(node_name: str) -> Any:
+            """Read a device node, stringifying non-JSON values."""
             try:
                 value = getattr(self.camera, node_name).Value
                 try:
@@ -264,8 +365,16 @@ class CameraHandler:
         return meta
 
     @staticmethod
-    def run_in_thread(func, *args) -> threading.Thread:
-        """General worker function to run a function in a thread"""
+    def run_in_thread(func: Callable[..., Any], *args: Any) -> threading.Thread:
+        """Start a callable in a daemon thread.
+
+        Args:
+            func: Callable to execute.
+            *args: Positional arguments forwarded to ``func``.
+
+        Returns:
+            The started daemon thread.
+        """
 
         thread = threading.Thread(target=func, args=args, daemon=True)
         thread.start()

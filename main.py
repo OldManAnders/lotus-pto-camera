@@ -1,8 +1,9 @@
-'''
+"""Run a series of image captures for the LOTUS-PTO camera rig.
+
 This script executes a series of image captures with a set of given camera parameters and a set of given lighting parameters.
 The lighting and camera parameters are called by the names specified in the config.yaml.
 To acquire from several rigs, this script should be executed for every camera setup
-'''
+"""
 import argparse
 import os
 import sys

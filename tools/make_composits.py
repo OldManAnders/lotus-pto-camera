@@ -1,3 +1,9 @@
+"""Offline compositing tool: bin timestamped images by time and composite each bin.
+
+Reads timestamped images, groups them into time bins, applies a configurable
+composite method (mean, median, percentile) to each bin, and writes the
+resulting composites as JPEG files. Intended to be run as a script.
+"""
 
 from __future__ import annotations
 
@@ -13,7 +19,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta, time
 from pathlib import Path
-from typing import Dict, List, Optional, Type
+from typing import Callable, Dict, List, Optional, Type
 from utils import parsing
 
 #### Logging and filename structure ####
@@ -22,29 +28,79 @@ FILENAME_PATTERN = re.compile(r"^(?P<date>\d{8})-(?P<time>\d{6})_(?P<rig>[^_]+)_
 
 @dataclass
 class TimeBin:
-    records: List[ImageRecord]
+    """A time interval holding the image records that fall within it.
+
+    Attributes:
+        records: Image records whose timestamps fall within ``[start, end]``.
+        start: Inclusive start of the bin.
+        end: Inclusive end of the bin.
+        img: Composited image for the bin, or ``None`` until processing runs.
+    """
+
+    records: List[parsing.ImageRecord]
     start: datetime
     end: datetime
-    img: np.ndarray = None
+    img: Optional[np.ndarray] = None
 
     @property
     def label(self) -> str:
+        """Return the bin start as a ``YYYYMMDD-HHMMSS`` label.
+
+        Returns:
+            The formatted start timestamp, used as an output filename prefix.
+        """
         return self.start.strftime("%Y%m%d-%H%M%S")
 
 #### COMPOSITE SCAFFOLDING ####
 # Base composite class which all composite methods should extend
 class CompositeMethod(ABC):
+    """Abstract base and registry for per-bin compositing strategies.
+
+    Concrete subclasses register themselves under a short name via the
+    ``register`` decorator and are instantiated by name through
+    ``create``, allowing the CLI to select a method without importing it
+    directly.
+    """
+
     _registry: Dict[str, Type["CompositeMethod"]] = {}
 
     @classmethod
-    def register(cls, name: str):
-        def _wrap(subclass: Type["CompositeMethod"]):
+    def register(cls, name: str) -> Callable[[Type["CompositeMethod"]], Type["CompositeMethod"]]:
+        """Register a composite subclass under ``name``.
+
+        Args:
+            name: Short identifier used to look the method up via ``create``.
+
+        Returns:
+            A class decorator that records the subclass and returns it unchanged.
+        """
+        def _wrap(subclass: Type["CompositeMethod"]) -> Type["CompositeMethod"]:
+            """Record ``subclass`` under ``name`` and return it unchanged.
+
+            Args:
+                subclass: The concrete composite class being decorated.
+
+            Returns:
+                The same class, so the decorator is transparent to callers.
+            """
             cls._registry[name] = subclass
             return subclass
         return _wrap
 
     @classmethod
-    def create(cls, name: str, **kwargs) -> "CompositeMethod":
+    def create(cls, name: str, **kwargs: Any) -> "CompositeMethod":
+        """Instantiate a registered composite method by name.
+
+        Args:
+            name: Registered method name (see ``available_methods``).
+            **kwargs: Keyword arguments forwarded to the method constructor.
+
+        Returns:
+            A new instance of the registered composite method.
+
+        Raises:
+            ValueError: If ``name`` is not present in the registry.
+        """
         if name not in cls._registry:
             available = ", ".join(sorted(cls._registry)) or "<none registered>"
             raise ValueError(f"Unknown composite method '{name}'. Available: {available}")
@@ -52,21 +108,55 @@ class CompositeMethod(ABC):
 
     @classmethod
     def available_methods(cls) -> List[str]:
+        """List the names of all registered composite methods.
+
+        Returns:
+            Sorted method names currently present in the registry.
+        """
         return sorted(cls._registry)
     
     @abstractmethod
     def composite(self, images: List[np.ndarray]) -> np.ndarray:
+        """Combine a stack of aligned images into a single image.
+
+        Args:
+            images: Non-empty list of equally shaped BGR images.
+
+        Returns:
+            The composited ``uint8`` image.
+
+        Raises:
+            NotImplementedError: Always, unless overridden by a subclass.
+        """
         raise NotImplementedError("The scaffolding class does not contain the combine functionality please subclass and implement")
         return np.ndarray([])
     
     def __call__(self, images: List[np.ndarray]) -> np.ndarray:
+        """Composite ``images`` via ``composite``.
+
+        Args:
+            images: Non-empty list of equally shaped BGR images.
+
+        Returns:
+            The composited ``uint8`` image.
+        """
         return self.composite(images)
 
 #### COMPOSITE METHODS ####
 # Per-pixel average across the stack.
 @CompositeMethod.register("mean")
 class MeanComposite(CompositeMethod):
-    def composite(self, images: List[np.ndarray]):
+    """Composite method computing the per-pixel mean across the stack."""
+
+    def composite(self, images: List[np.ndarray]) -> np.ndarray:
+        """Average ``images`` per pixel.
+
+        Args:
+            images: Non-empty list of equally shaped BGR images.
+
+        Returns:
+            The per-pixel mean image as ``uint8``.
+        """
         acc = np.zeros(images[0].shape, dtype=np.float32)
         for image in images:
             acc += image.astype(np.float32, copy=False)
@@ -77,23 +167,57 @@ class MeanComposite(CompositeMethod):
 # Per-pixel median across the stack
 @CompositeMethod.register("median")
 class MedianComposite(CompositeMethod): 
-    def composite(self, images: List[np.ndarray]):
+    """Composite method computing the per-pixel median across the stack."""
+
+    def composite(self, images: List[np.ndarray]) -> np.ndarray:
+        """Take the per-pixel median of ``images``.
+
+        Args:
+            images: Non-empty list of equally shaped BGR images.
+
+        Returns:
+            The per-pixel median image as ``uint8``.
+        """
         stack = np.stack(images)
         return np.clip(np.median(stack, axis=0), 0, 255).astype(np.uint8)
 
 # Percentile based sampling
 @CompositeMethod.register("percentile")
 class PercentileComposite(CompositeMethod):
-    def __init__(self, percentile: float = 25.0):
+    """Composite method selecting a per-pixel percentile across the stack."""
+
+    def __init__(self, percentile: float = 25.0) -> None:
+        """Initialize the percentile composite.
+
+        Args:
+            percentile: Percentile to sample per pixel, in ``[0, 100]``.
+        """
         self.percentile = float(percentile)
 
     def composite(self, images: List[np.ndarray]) -> np.ndarray:
+        """Take the per-pixel percentile of ``images``.
+
+        Args:
+            images: Non-empty list of equally shaped BGR images.
+
+        Returns:
+            The per-pixel percentile image as ``uint8``.
+        """
         stack = np.stack(images)
         return np.clip(np.percentile(stack, self.percentile, axis=0), 0, 255).astype(np.uint8)
 
 #### BIN HANDLING ####
-def assign_to_bins(records: List[ImageRecord], bins: List[TimeBin], discard_empty=True) -> List[TimeBin]:
-    """Finds a matching bin for each record and returns the bin (with the records)"""
+def assign_to_bins(records: List[parsing.ImageRecord], bins: List[TimeBin], discard_empty: bool = True) -> List[TimeBin]:
+    """Assign each record to the first bin whose interval contains it.
+
+    Args:
+        records: Image records to distribute across ``bins``.
+        bins: Time bins to populate in place.
+        discard_empty: If ``True``, drop bins that received no records.
+
+    Returns:
+        The populated bins, optionally excluding empty ones.
+    """
     for record in records:
         for b in bins:
             if b.start <= record.timestamp <= b.end:
@@ -104,11 +228,24 @@ def assign_to_bins(records: List[ImageRecord], bins: List[TimeBin], discard_empt
     else:
         return bins
 
-def build_bins(records: List[ImageRecord], interval: int, width:int) -> List[TimeBin]:
-    """Create bins from a list of records with set intervals and bin widths"""
+def build_bins(records: List[parsing.ImageRecord], interval: int, width: int) -> List[TimeBin]:
+    """Create fixed-interval time bins spanning the records' date range.
+
+    Args:
+        records: Image records whose timestamps define the overall span.
+        interval: Minutes between the start of consecutive bins.
+        width: Length of each bin in minutes.
+
+    Returns:
+        Time bins covering from midnight of the earliest record's date to
+        midnight after the latest record's date.
+
+    Raises:
+        ValueError: If ``interval`` and ``width`` are both ``<= 1``.
+    """
     # Verify valid interval and bin width
     if interval <= 1 and width <=1:
-        raise ValueError("bin_freq and bin_width must be <= 1 minutes")
+        raise ValueError("bin_freq and bin_width must be greater than 1")
 
     # Fetch all timestamps
     timestamps = [record.timestamp for record in records]
@@ -125,14 +262,32 @@ def build_bins(records: List[ImageRecord], interval: int, width:int) -> List[Tim
     return bins
 
 def load_image(path: Path) -> Optional[np.ndarray]:
-    """Load image from disk"""
+    """Load an image from disk as a BGR array.
+
+    Args:
+        path: Path to the image file.
+
+    Returns:
+        The decoded BGR image, or ``None`` if it could not be read.
+    """
     image = cv2.imread(str(path), cv2.IMREAD_COLOR)
     if image is None:
         logger.warning("Could not read image %s", path)
     return image
 
-def process_bin(bin: TimeBin, method: CompositeMethod, logger=None) -> Optional[np.ndarray]:
-    """Function for parralel processing and bin verification"""
+def process_bin(bin: TimeBin, method: CompositeMethod, logger: Optional[logging.Logger] = None) -> Optional[TimeBin]:
+    """Read and composite the images belonging to a single bin.
+
+    Args:
+        bin: The time bin to process; its ``records`` are read and its ``img``
+            is populated when compositing succeeds.
+        method: Composite method applied to the successfully loaded images.
+        logger: Optional logger for progress and failure messages.
+
+    Returns:
+        The processed bin, with ``img`` set when compositing succeeded, or the
+        unchanged bin when it is empty or no images could be read.
+    """
     logger.debug(f"Processing bin {bin.label}")
     # Check if there is images
     if len(bin.records) <=0:

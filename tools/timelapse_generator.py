@@ -1,3 +1,10 @@
+"""ffmpeg-based timelapse exporter for timestamped image sequences.
+
+Builds a frame list and an ASS subtitle track from timestamped images, then
+drives ffmpeg to encode them into a video with optional scaling, cropping and
+text overlays. Intended to be run as a script.
+"""
+
 import os
 import subprocess
 import tempfile
@@ -5,16 +12,29 @@ import logging
 from utils import parsing
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional, Tuple
 from tqdm import tqdm
 
 
 class TimelapseGenerator:      
-    def _build_timestamp_ass(self, records, fps, overlay_text=None):
-        """Build ASS subtitle file for frame timestamps."""
+    """Encode an ordered sequence of timestamped images into a timelapse video."""
 
-        def format_ass_time(seconds):
-            """Convert to ASS subtitle timestamps for temporal positioning"""
+    def _build_timestamp_ass(self, records: List[parsing.ImageRecord], fps: int, overlay_text: Optional[str] = None) -> str:
+        """Build an ASS subtitle file containing frame timestamps.
+
+        Args:
+            records: Image records in playback order; each contributes one
+                timestamped subtitle event.
+            fps: Frames per second used to map frame indices to subtitle times.
+            overlay_text: Optional static text shown in the top-left corner for
+                the whole video.
+
+        Returns:
+            Path to the temporary ``.ass`` subtitle file written to disk.
+        """
+
+        def format_ass_time(seconds: float) -> str:
+            """Convert seconds to an ASS timestamp (``H:MM:SS.cc``)."""
             hours = int(seconds // 3600)
             minutes = int((seconds % 3600) // 60)
             secs = seconds % 60
@@ -57,8 +77,20 @@ class TimelapseGenerator:
         temp_ass.close()
         return temp_ass.name
 
-    def _build_video_filter(self, scale, subtitle_path_escaped, crop=None):
-        """Build the ffmpeg video filter chain for export."""
+    def _build_video_filter(self, scale: float, subtitle_path_escaped: str, crop: Optional[Tuple[int, int, int, int]] = None) -> str:
+        """Build the ffmpeg video filter chain for export.
+
+        Args:
+            scale: Multiplier applied to the input resolution; ``1.0`` disables scaling.
+            subtitle_path_escaped: Escaped path to the ASS subtitle file.
+            crop: Optional crop region as ``(x, y, width, height)``.
+
+        Returns:
+            A comma-separated ffmpeg filter chain.
+
+        Raises:
+            ValueError: If a crop is given with non-positive width or height.
+        """
         filters = []
         
         # Crop the video if crop values are provided
@@ -77,8 +109,27 @@ class TimelapseGenerator:
         filters.append(f"subtitles='{subtitle_path_escaped}'")
         return ",".join(filters)
 
-    def export(self, records, output, fps=15, scale=1.0, codec="libx264", preset="medium", crf=23, crop=None, overlay_text=None, progress_callback=None):
-        """Export matched images to video file."""
+    def export(self, records: List[parsing.ImageRecord], output: str, fps: int = 15, scale: float = 1.0, codec: str = "libx264", preset: str = "medium", crf: int = 23, crop: Optional[Tuple[int, int, int, int]] = None, overlay_text: Optional[str] = None, progress_callback: Optional[Callable[[int, int], None]] = None) -> None:
+        """Encode matched images into a timelapse video via ffmpeg.
+
+        Args:
+            records: Image records in playback order; must be non-empty.
+            output: Destination video file path.
+            fps: Output frames per second.
+            scale: Multiplier applied to the input resolution; ``1.0`` disables
+                scaling.
+            codec: ffmpeg video codec name (e.g. ``"libx264"``).
+            preset: Encoder preset name (e.g. ``"medium"``).
+            crf: Constant Rate Factor controlling quality/compression.
+            crop: Optional crop region as ``(x, y, width, height)``.
+            overlay_text: Optional static text shown in the top-left corner.
+            progress_callback: Optional callback invoked with
+                ``(frames_done, total_frames)`` as encoding progresses.
+
+        Raises:
+            ValueError: If ``records`` is empty.
+            RuntimeError: If ffmpeg exits with a non-zero return code.
+        """
 
         # Check if there even is images in the export
         if len(records) <= 0:

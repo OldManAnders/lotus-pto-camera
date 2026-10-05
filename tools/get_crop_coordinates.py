@@ -1,8 +1,25 @@
+"""Interactive crop-coordinate picker for Basler ROI settings.
+
+Opens an image, lets the user move a box over it, and prints YAML-ready crop
+settings for the selected region (OffsetX/OffsetY plus AutoOffsetX/AutoOffsetY)
+after prompting for a sample name. When an optional ROI size is supplied, the
+inner ROI rectangle is drawn as well.
+"""
 import sys
+from typing import Any, Optional, Tuple
+
 import cv2
 
-def get_screen_size(default=(1920, 1080)):
-    """Best-effort screen size lookup; falls back to `default` if unavailable."""
+
+def get_screen_size(default: Tuple[int, int] = (1920, 1080)) -> Tuple[int, int]:
+    """Best-effort screen size lookup; falls back to ``default`` if unavailable.
+
+    Args:
+        default: Size in pixels to return when the screen size cannot be queried.
+
+    Returns:
+        A ``(width, height)`` tuple in pixels.
+    """
     try:
         import tkinter as tk
         root = tk.Tk()
@@ -13,7 +30,12 @@ def get_screen_size(default=(1920, 1080)):
     except Exception:
         return default
 
-def prompt_sample_name():
+def prompt_sample_name() -> Optional[str]:
+    """Prompt for a sample name via a small modal tkinter dialog.
+
+    Returns:
+        The stripped sample name, or ``None`` if the dialog was cancelled.
+    """
     import tkinter as tk
 
     root = tk.Tk()
@@ -31,11 +53,13 @@ def prompt_sample_name():
 
     result = {"value": None}
 
-    def on_ok(event=None):
+    def on_ok(event: Any = None) -> None:
+        """Accept the typed name and close the dialog."""
         result["value"] = entry.get().strip()
         root.quit()
 
-    def on_cancel(event=None):
+    def on_cancel(event: Any = None) -> None:
+        """Dismiss the dialog without returning a name."""
         root.quit()
 
     buttons = tk.Frame(root)
@@ -52,7 +76,17 @@ def prompt_sample_name():
 
     return result["value"]
 
-def main():
+def main() -> None:
+    """Run the interactive crop picker.
+
+    Reads the image path, box size, and optional ROI size from ``sys.argv``,
+    scales the image to fit the screen, and prints YAML crop settings each time
+    the user left-clicks. Exits on ``q``/``Esc`` or when the window is closed.
+
+    Raises:
+        SystemExit: On invalid arguments, a non-positive ROI, or an unreadable
+            image (exit code 1).
+    """
     if len(sys.argv) not in (4, 6):
         print("Usage: python3 tools/get_crop_coordinates.py <image_path> <box_width> <box_height> [roi_width roi_height]")
         sys.exit(1)
@@ -90,13 +124,31 @@ def main():
 
     state = {"x": w // 2, "y": h // 2}  # always stored in full-res coordinates
 
-    def clamp_top_left(cx, cy):
+    def clamp_top_left(cx: int, cy: int) -> Tuple[int, int]:
+        """Clamp a box centered on ``(cx, cy)`` to the image bounds.
+
+        Args:
+            cx: Cursor x coordinate in full-resolution pixels.
+            cy: Cursor y coordinate in full-resolution pixels.
+
+        Returns:
+            The clamped top-left ``(x0, y0)`` of the box in full-resolution pixels.
+        """
         # Box is centered on the cursor; clamp so it stays inside the image.
         x0 = max(0, min(cx - box_w // 2, w - box_w))
         y0 = max(0, min(cy - box_h // 2, h - box_h))
         return x0, y0
 
-    def on_mouse(event, x, y, flags, param):
+    def on_mouse(event: int, x: int, y: int, flags: int, param: Any) -> None:
+        """Track the cursor and print crop settings on left-click.
+
+        Args:
+            event: OpenCV mouse event code.
+            x: Cursor x coordinate in displayed-window pixels.
+            y: Cursor y coordinate in displayed-window pixels.
+            flags: OpenCV event flags (unused).
+            param: User data passed to the callback (unused).
+        """
         # Convert displayed-window coords back to full-resolution coords.
         state["x"], state["y"] = int(x / scale), int(y / scale)
         if event == cv2.EVENT_LBUTTONDOWN:

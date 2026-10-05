@@ -11,6 +11,7 @@ import os
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+from typing import Any, Dict
 
 import yaml
 
@@ -19,8 +20,21 @@ from utils.logging_config import configure_logging
 
 
 class CameraGuiApp:
+    """Tkinter control panel that builds and runs a capture sequence.
 
-    def __init__(self, root):
+    The panel edits the config path, rig selection, and session/storage
+    settings, then collects capture steps made of a camera config plus either
+    a named light config or manual LED values. Running the sequence
+    instantiates a ``CaptureController`` and drives the same rig pipeline as
+    the CLI.
+    """
+
+    def __init__(self, root: Any) -> None:
+        """Build the control panel and load the default config file.
+
+        Args:
+            root: The Tk root window that owns this application.
+        """
         self.root = root
         self.root.title("Camera & Light Control Panel")
         self.root.geometry("560x980")
@@ -47,7 +61,8 @@ class CameraGuiApp:
     # ------------------------------------------------------------------ #
     # Section builders
     # ------------------------------------------------------------------ #
-    def _build_config_section(self, parent):
+    def _build_config_section(self, parent: Any) -> None:
+        """Build the config-file path, browse, and reload widgets."""
         frame = ttk.LabelFrame(parent, text=" Config File ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -61,7 +76,8 @@ class CameraGuiApp:
         ttk.Button(frame, text="Reload", command=self.reload_config, width=10).grid(
             row=0, column=2, padx=(5, 0))
 
-    def _build_rig_section(self, parent):
+    def _build_rig_section(self, parent: Any) -> None:
+        """Build the rig selection and enable-flag checkboxes."""
         frame = ttk.LabelFrame(parent, text=" Rig Selection ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -80,7 +96,8 @@ class CameraGuiApp:
         ttk.Checkbutton(frame, text="Enable UniFi", variable=self.enable_unifi_var).grid(
             row=2, column=0, sticky=tk.W, pady=2)
 
-    def _build_io_section(self, parent):
+    def _build_io_section(self, parent: Any) -> None:
+        """Build the session name and output folder widgets."""
         frame = ttk.LabelFrame(parent, text=" Session & Storage ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -98,7 +115,8 @@ class CameraGuiApp:
         ttk.Button(frame, text="Browse...", command=self.browse_folder, width=10).grid(
             row=1, column=2, padx=(5, 0), pady=2)
 
-    def _build_step_builder_section(self, parent):
+    def _build_step_builder_section(self, parent: Any) -> None:
+        """Build the camera/light step builder and add-step button."""
         frame = ttk.LabelFrame(parent, text=" Add Capture Step ", padding="10")
         frame.pack(fill=tk.X, pady=5)
 
@@ -136,7 +154,8 @@ class CameraGuiApp:
 
         self._on_light_mode_change()
 
-    def _build_sequence_list_section(self, parent):
+    def _build_sequence_list_section(self, parent: Any) -> None:
+        """Build the sequence listbox and its reorder buttons."""
         frame = ttk.LabelFrame(parent, text=" Capture Sequence ", padding="10")
         frame.pack(fill=tk.BOTH, pady=5)
 
@@ -154,11 +173,13 @@ class CameraGuiApp:
         ttk.Button(btn_col, text="Move Down", command=lambda: self.move_step(1)).pack(
             fill=tk.X, pady=2)
 
-    def _build_run_section(self, parent):
+    def _build_run_section(self, parent: Any) -> None:
+        """Build the run-sequence button."""
         self.run_btn = ttk.Button(parent, text="RUN SEQUENCE", command=self.run_sequence_threaded)
         self.run_btn.pack(fill=tk.X, pady=15, ipady=5)
 
-    def _build_log_section(self, parent):
+    def _build_log_section(self, parent: Any) -> None:
+        """Build the read-only system log text widget."""
         frame = ttk.LabelFrame(parent, text=" System Logs ", padding="5")
         frame.pack(fill=tk.BOTH, expand=True)
 
@@ -169,7 +190,8 @@ class CameraGuiApp:
     # ------------------------------------------------------------------ #
     # Config loading
     # ------------------------------------------------------------------ #
-    def browse_config(self):
+    def browse_config(self) -> None:
+        """Prompt for a config file and reload it if one is chosen."""
         path = filedialog.askopenfilename(
             title="Select config.yaml",
             filetypes=[("YAML files", "*.yaml *.yml"), ("All files", "*.*")])
@@ -178,10 +200,19 @@ class CameraGuiApp:
             self.config_path_ent.insert(0, path)
             self.reload_config()
 
-    def reload_config(self):
+    def reload_config(self) -> None:
+        """Reload the config from the path currently shown in the entry."""
         self.load_config(self.config_path_ent.get().strip())
 
-    def load_config(self, path):
+    def load_config(self, path: str) -> None:
+        """Load a YAML config and populate the rig/camera/light comboboxes.
+
+        Failures are logged and reported in a message box; the panel is left
+        with an empty config.
+
+        Args:
+            path: Filesystem path to the YAML config file.
+        """
         try:
             with open(path, 'r') as f:
                 self.config = yaml.safe_load(f) or {}
@@ -219,7 +250,8 @@ class CameraGuiApp:
     # ------------------------------------------------------------------ #
     # Sequence builder
     # ------------------------------------------------------------------ #
-    def _on_light_mode_change(self):
+    def _on_light_mode_change(self) -> None:
+        """Show either the named-light widgets or the manual LED widgets."""
         if self.light_mode_var.get() == "named":
             self.led_lbl.grid_forget()
             self.led1_ent.grid_forget()
@@ -235,7 +267,13 @@ class CameraGuiApp:
             self.led2_ent.grid(row=2, column=2, sticky=tk.W, pady=2, padx=5)
             self.led3_ent.grid(row=2, column=3, sticky=tk.W, pady=2, padx=5)
 
-    def add_step(self):
+    def add_step(self) -> None:
+        """Append a capture step from the current builder selections.
+
+        Requires a selected camera config and, for named lighting, a selected
+        light config; manual LED entries must parse as integers. Validation
+        failures are reported in a message box.
+        """
         cam_config = self.cam_cfg_cmb.get()
         if not cam_config:
             messagebox.showerror("Error", "Select a camera config first.")
@@ -260,7 +298,8 @@ class CameraGuiApp:
         self.sequence.append(step)
         self.sequence_list.insert(tk.END, f"[{len(self.sequence)}] {label}")
 
-    def remove_step(self):
+    def remove_step(self) -> None:
+        """Remove the selected step from the sequence, if any."""
         sel = self.sequence_list.curselection()
         if not sel:
             return
@@ -268,11 +307,18 @@ class CameraGuiApp:
         del self.sequence[idx]
         self._refresh_sequence_list()
 
-    def clear_sequence(self):
+    def clear_sequence(self) -> None:
+        """Remove all steps from the sequence."""
         self.sequence = []
         self._refresh_sequence_list()
 
-    def move_step(self, direction):
+    def move_step(self, direction: int) -> None:
+        """Move the selected step up or down within the sequence.
+
+        Args:
+            direction: Offset applied to the selected index (``-1`` moves up,
+                ``1`` moves down). Out-of-range moves are ignored.
+        """
         sel = self.sequence_list.curselection()
         if not sel:
             return
@@ -283,7 +329,8 @@ class CameraGuiApp:
             self._refresh_sequence_list()
             self.sequence_list.selection_set(new_idx)
 
-    def _refresh_sequence_list(self):
+    def _refresh_sequence_list(self) -> None:
+        """Rebuild the listbox from the current sequence."""
         self.sequence_list.delete(0, tk.END)
         for i, step in enumerate(self.sequence, start=1):
             if step["light_type"] == "named":
@@ -295,17 +342,30 @@ class CameraGuiApp:
     # ------------------------------------------------------------------ #
     # Misc helpers
     # ------------------------------------------------------------------ #
-    def log(self, message):
+    def log(self, message: str) -> None:
+        """Append a line to the on-screen log widget.
+
+        Args:
+            message: Text to append (a trailing newline is added).
+        """
         self.log_text.config(state='normal')
         self.log_text.insert(tk.END, f"{message}\n")
         self.log_text.see(tk.END)
         self.log_text.config(state='disabled')
 
-    def log_threadsafe(self, message):
-        """Post a log line to the Tk main loop. (Tkinter is not thread-safe.)"""
+    def log_threadsafe(self, message: str) -> None:
+        """Post a log line to the Tk main loop.
+
+        Tkinter is not thread-safe, so background threads must use this
+        instead of ``log`` directly.
+
+        Args:
+            message: Text to append (a trailing newline is added).
+        """
         self.root.after(0, lambda: self.log(message))
 
-    def browse_folder(self):
+    def browse_folder(self) -> None:
+        """Prompt for an output folder and fill the entry if one is chosen."""
         selected_dir = filedialog.askdirectory()
         if selected_dir:
             self.folder_ent.delete(0, tk.END)
@@ -314,8 +374,17 @@ class CameraGuiApp:
     # ------------------------------------------------------------------ #
     # Capture execution
     # ------------------------------------------------------------------ #
-    def _to_capture_step(self, step):
-        """Convert a GUI sequence entry into a CaptureController CaptureStep."""
+    def _to_capture_step(self, step: Dict[str, Any]) -> CaptureStep:
+        """Convert a GUI sequence entry into a ``CaptureStep``.
+
+        Args:
+            step: Sequence entry carrying ``cam_config`` and ``light_type``.
+                Named entries also carry ``light_config``; manual entries carry
+                ``leds`` as a three-tuple of ints.
+
+        Returns:
+            The normalized ``CaptureStep`` consumed by the capture pipeline.
+        """
         cam_config = step["cam_config"]
         if step["light_type"] == "named":
             light_config = step["light_config"]
@@ -330,8 +399,13 @@ class CameraGuiApp:
             leds=leds
         )
 
-    def run_sequence_threaded(self):
-        """Runs the capture sequence on a background thread so the GUI stays responsive."""
+    def run_sequence_threaded(self) -> None:
+        """Run the capture sequence on a background thread.
+
+        Keeps the GUI responsive by disabling the run button and starting
+        ``_run_sequence_safe`` on a daemon thread. Shows an error if the
+        sequence is empty.
+        """
         if not self.sequence:
             messagebox.showerror("Error", "Add at least one step to the sequence first.")
             return
@@ -340,13 +414,21 @@ class CameraGuiApp:
         thread = threading.Thread(target=self._run_sequence_safe, daemon=True)
         thread.start()
 
-    def _run_sequence_safe(self):
+    def _run_sequence_safe(self) -> None:
+        """Run the sequence and re-enable the run button on completion."""
         try:
             self.run_sequence()
         finally:
             self.root.after(0, lambda: self.run_btn.config(state='normal'))
 
-    def run_sequence(self):
+    def run_sequence(self) -> None:
+        """Execute the configured sequence through ``CaptureController``.
+
+        Validates the rig, session name, and output folder, creates the output
+        directory, then starts the rig, prepares for capture, runs the
+        sequence, and powers the camera off. Failures are logged and surfaced
+        through a message box on the Tk main loop.
+        """
         rig = self.rig_cmb.get()
         session_name = self.session_ent.get().strip()
         output_folder = self.folder_ent.get().strip()
