@@ -236,6 +236,7 @@ class CaptureController():
             "capture": {
                 "timestamp": timestamp,
                 "rig": self.rig,
+                "ip": self.camera_handler.ip if self.camera_handler else None,
                 "camera_config": cam_config_name,
                 "lighting_config": light_config_name,
                 "image_file": f"{timestamp}_{self.rig}_{cam_config_name}_{light_config_name}.png"
@@ -253,8 +254,7 @@ class CaptureController():
             },
             "pipeline": {
                 "poe_warmup_sec": self.POE_WARMUP_SEC,
-                "buffer_flush_iterations": self.FLUSH_ROUNDS,
-                "buffer_flush_grabs_per_iteration": self.FLUSH_GRABS,
+                "buffer_flushed_grabs": int(self.FLUSH_ROUNDS * self.FLUSH_GRABS),
                 "capture_delay_sec": capture_delay_sec
             }
         }

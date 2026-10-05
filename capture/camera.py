@@ -50,24 +50,27 @@ class CameraHandler:
         # store output folder path
         self.output_folder = output_folder
         os.makedirs(self.output_folder, exist_ok=True)
-
+        self.ip = ip
         self.rig = rig
         self.logger = get_logger(__name__, component="camera", rig=self.rig)
-        self.logger.debug(f"Initialized camera handler {self.rig}", extra={"event": "camera_handler_initialized", "details": {"rig": self.rig, "ip": ip}})
 
-        # Get camera and open it. Discovery failures surface from
-        # CreateFirstDevice (not as a None camera), so guard the whole block.
         try:
-            if ip is None: #If not IP specified get first available device
+            if self.ip is None: #If not IP specified get first available device
                 device = pylon.TlFactory.GetInstance().CreateFirstDevice()
+                self.camera = pylon.InstantCamera(device)
+                self.camera.Open()
+                self.ip = self.camera.GetDeviceInfo().GetIpAddress()
+                self.logger.info(f"No IP specified for {self.rig}, using first available camera", extra={"event": "camera_first_available", "details": {"rig": self.rig, "ip": self.ip}})
             else:
                 device_info = pylon.DeviceInfo()
                 device_info.SetPropertyValue("IpAddress", ip)
                 device = pylon.TlFactory.GetInstance().CreateFirstDevice(device_info)
-            self.camera = pylon.InstantCamera(device)
-            self.camera.Open()
+                self.camera = pylon.InstantCamera(device)
+                self.camera.Open()
+                self.ip = self.camera.GetDeviceInfo().GetIpAddress()
+            self.logger.debug(f"Initialized camera handler {self.rig}", extra={"event": "camera_handler_initialized", "details": {"rig": self.rig, "ip": self.ip}})
         except Exception as e:
-            self.logger.error(f"Failed to open camera at IP: {ip if ip is not None else 'first available'} - {e}", extra={"event": "camera_not_found", "details": {"ip": ip, "error": str(e)}}, exc_info=True)
+            self.logger.error(f"Failed to open camera at IP: {ip if ip is not None else f'first available - {self.ip}'} - {e}", extra={"event": "camera_not_found", "details": {"ip": ip, "error": str(e)}}, exc_info=True)
             raise
 
         self.camera_mutex = threading.Lock()
