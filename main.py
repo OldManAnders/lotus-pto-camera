@@ -46,7 +46,7 @@ if __name__ == "__main__":
         )
 
     try:
-        cc.logger.info(f"Routine started on {cc.name}", extra={"event": "routine_start", "details": {"rig": cc.name}})
+        cc.logger.info(f"Routine started on {cc.rig}", extra={"event": "routine_start", "details": {"rig": cc.rig}})
         # Start
         cc.start_rig()
 
@@ -67,7 +67,7 @@ if __name__ == "__main__":
         # Run the shared capture pipeline
         cc.run_capture_sequence(steps, capture_delay=args.capture_delay)
 
-        cc.logger.info(f"Routine completed on {cc.name}", extra={"event": "routine_done", "details": {"rig": cc.name}})
+        cc.logger.info(f"Routine completed on {cc.rig}", extra={"event": "routine_done", "details": {"rig": cc.rig}})
     except KeyboardInterrupt:
         cc.logger.warning("Capture interrupted by user (Ctrl-C)", extra={"event": "interrupted", "details": {}})
         sys.exit(130)

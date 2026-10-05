@@ -43,7 +43,7 @@ Does not return a body.
 
 ## Python handler
 `capture/microcontroller.py` wraps the endpoints using `requests`. 
-Construct with `MicrocontrollerHandler(ip, port=80, timeout=5, name="NA,NA", verbose=False)`. 
+Construct with `MicrocontrollerHandler(ip, port=80, rig="", timeout=5, verbose=False)`. 
 HTTP failures are logged (via `utils/logging_config.py`) and return `None`; they do not raise.
 
 | Method                              | Endpoint used                    | Notes                                      |

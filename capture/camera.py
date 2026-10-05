@@ -46,17 +46,14 @@ SETTINGS_NODES = [
 ]
 
 class CameraHandler:
-    def __init__(self, config=None, ip=None, name="NA,NA", rig=None, output_folder="./captured_images") -> None:
+    def __init__(self, config=None, ip=None, rig="", output_folder="./captured_images") -> None:
         # store output folder path
         self.output_folder = output_folder
         os.makedirs(self.output_folder, exist_ok=True)
 
-        #Mark initiation (rig is first-class; name kept for backward compat)
-        rig_name = rig or self._rig_from_name(name)
-        self.rig_name = rig_name
-        self.name = f"{rig_name},{name.split(',')[1] if ',' in name else name}"
-        self.logger = get_logger(self.name, component="camera", rig=rig_name)
-        self.logger.debug(f"Initialized camera handler {self.name}", extra={"event": "camera_handler_initialized", "details": {"name": self.name, "ip": ip}})
+        self.rig = rig
+        self.logger = get_logger(__name__, component="camera", rig=self.rig)
+        self.logger.debug(f"Initialized camera handler {self.rig}", extra={"event": "camera_handler_initialized", "details": {"rig": self.rig, "ip": ip}})
 
         # Get camera and open it. Discovery failures surface from
         # CreateFirstDevice (not as a None camera), so guard the whole block.
@@ -93,8 +90,7 @@ class CameraHandler:
         """Returns (image_path, json_path_or_None)."""
         if timestamp is None:
             timestamp = time.strftime("%Y%m%d-%H%M%S")
-        rig_name = self.rig_name if hasattr(self, "rig_name") else self._rig_from_name(self.name)
-        filename = f"{timestamp}_{rig_name}_{cam_config_name}_{light_config_name}.png"
+        filename = f"{timestamp}_{self.rig}_{cam_config_name}_{light_config_name}.png"
         if full_path == "":
             date_folder = time.strftime("%Y-%m-%d", time.strptime(timestamp, "%Y%m%d-%H%M%S"))
             full_path = os.path.join(self.output_folder, "images", date_folder)
@@ -116,7 +112,7 @@ class CameraHandler:
                 json_path = None
         return (image_path, json_path)
 
-    def capture_image(self, cam_config_name="default", light_config_name="NA") -> None:
+    def capture_image(self, cam_config_name="default", light_config_name="default") -> None:
         """
         Captures a single frame from the Basler camera and saves it to disk.
         If called by the user, prompts for saving or viewing the image.
@@ -144,12 +140,12 @@ class CameraHandler:
                 return img
 
             else:
-                self.logger.error(f"Failed to grab image from camera {self.name}", extra={"event": "grab_failed", "details": {"camera": self.name}})
+                self.logger.error(f"Failed to grab image from camera {self.rig}", extra={"event": "grab_failed", "details": {"rig": self.rig}})
 
             grabResult.Release()
 
         except Exception as e:
-            self.logger.error(f"Capture error on {self.name}: {e}", extra={"event": "capture_error", "details": {"camera": self.name, "error": str(e)}}, exc_info=True)
+            self.logger.error(f"Capture error on {self.rig}: {e}", extra={"event": "capture_error", "details": {"rig": self.rig, "error": str(e)}}, exc_info=True)
             self.try_reconnect()
 
     def try_reconnect(self):
@@ -165,24 +161,24 @@ class CameraHandler:
                 self.load_config(self.last_config)
             else:
                 self.logger.warning("No previous camera config to restore after reconnect", extra={"event": "reconnect_no_config", "details": {}})
-            self.logger.info(f"Camera reconnected: {self.name}", extra={"event": "camera_reconnected", "details": {"camera": self.name}})
+            self.logger.info(f"Camera reconnected: {self.rig}", extra={"event": "camera_reconnected", "details": {"rig": self.rig}})
 
         except Exception as e:
-            self.logger.error(f"Camera reconnect failed: {e}", extra={"event": "reconnect_failed", "details": {"camera": self.name, "error": str(e)}}, exc_info=True)
+            self.logger.error(f"Camera reconnect failed: {e}", extra={"event": "reconnect_failed", "details": {"rig": self.rig, "error": str(e)}}, exc_info=True)
 
     def sleep(self):
         """Puts the camera into standby mode to save power. Can be used between captures."""
         self.camera.BslSensorStandby.Execute()
-        self.logger.debug(f"Camera put into standby mode: {self.name}", extra={"event": "camera_sleep", "details": {"camera": self.name}})
+        self.logger.debug(f"Camera put into standby mode: {self.rig}", extra={"event": "camera_sleep", "details": {"rig": self.rig}})
 
     def wake(self):
         """Wakes the camera from standby mode."""
         self.camera.BslSensorOn.Execute()
-        self.logger.debug(f"Camera woken up: {self.name}", extra={"event": "camera_wake", "details": {"camera": self.name}})
+        self.logger.debug(f"Camera woken up: {self.rig}", extra={"event": "camera_wake", "details": {"rig": self.rig}})
 
     def close(self):
         self.camera.Close()
-        self.logger.info(f"Camera stopped: {self.name}", extra={"event": "camera_stopped", "details": {"camera": self.name}})
+        self.logger.info(f"Camera stopped: {self.rig}", extra={"event": "camera_stopped", "details": {"rig": self.rig}})
 
     def load_config(self, config):
         self.last_config = config
@@ -231,11 +227,11 @@ class CameraHandler:
             self.camera.AutoFunctionROIOffsetY.Value = self.config["AutoROIOffsetY"]
 
             # Log completion
-            self.logger.debug(f"Camera settings updated: {self.name}", extra={"event": "camera_settings_updated", "details": {"camera": self.name}})
+            self.logger.debug(f"Camera settings updated: {self.rig}", extra={"event": "camera_settings_updated", "details": {"rig": self.rig}})
 
 
         except Exception as e:
-            self.logger.error(f"Camera settings update failed: {e}", extra={"event": "settings_update_error", "details": {"camera": self.name, "error": str(e)}}, exc_info=True)
+            self.logger.error(f"Camera settings update failed: {e}", extra={"event": "settings_update_error", "details": {"rig": self.rig, "error": str(e)}}, exc_info=True)
             #self.try_reconnect()
 
     def read_temperature(self):
@@ -263,10 +259,6 @@ class CameraHandler:
         for n in SETTINGS_NODES:
             meta["settings_actual"][n] = _read(n)
         return meta
-
-    @staticmethod
-    def _rig_from_name(name: str) -> str:
-        return name.split(",")[0] if "," in name else name
 
     @staticmethod
     def run_in_thread(func, *args) -> threading.Thread:

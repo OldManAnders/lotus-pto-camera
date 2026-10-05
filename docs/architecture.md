@@ -33,7 +33,7 @@ sequenceDiagram
 
     U->>E: python main.py rig1 -c cam light
     E->>CC: CaptureController(rig, config, enable_camera, enable_microcontroller, output_path, log_level)
-    CC->>LOG: configure_logging(level) + get_logger("main", component=rig)
+    CC->>LOG: configure_logging(level, rig) + get_logger(__name__, component="main", rig)
     CC->>CC: get_subconfig("setups"), validate rig name
     CC->>UH: UnifiConfig(**network.unifi) then UnifiPoEController(...)
     UH->>SW: POST /api/login, GET /api/self/sites
@@ -47,9 +47,9 @@ sequenceDiagram
     end
     UH-->>CC: {success: True}
     CC->>CC: time.sleep(10) (camera warmup)
-    CC->>CH: CameraHandler(ip, name, output_folder)
+    CC->>CH: CameraHandler(ip, rig, output_folder)
     CH->>BC: InstantCamera.CreateFirstDevice(ip) then Open()
-    CC->>MH: MicrocontrollerHandler(ip, port, name)
+    CC->>MH: MicrocontrollerHandler(ip, port, rig)
 
     E->>CC: prepare_for_capture()
     CC->>MH: wipe()
@@ -189,8 +189,8 @@ classDiagram
 
     class logging_config {
         <<module>>
-        +configure_logging(level, logfile)
-        +get_logger(name, component)
+        +configure_logging(level, logfile, run_id, rig)
+        +get_logger(name, component, rig)
     }
 
     class CSVFormatter {

@@ -3,16 +3,15 @@ import requests
 from utils.logging_config import get_logger
 
 class MicrocontrollerHandler:
-    def __init__(self, ip, port=80, timeout=5, name="NA,NA", rig=None, verbose=False) -> None:
-        self.name = name
+    def __init__(self, ip, port=80, rig="", timeout=5, verbose=False) -> None:
+        self.rig = rig
         self.ip = ip
         self.port = port
         self.timeout = timeout
         self.verbose = verbose
         self._last_ping_ok = False
-        rig_name = rig or (name.split(",")[0] if "," in name else name)
-        self.logger = get_logger(__name__, component="microcontroller", rig=rig_name)
-        self.logger.debug(f"Initialized microcontroller: {self.name}, IP: {self.ip}, Port: {self.port}", extra={"event": "microcontroller_initialized", "details": {"name": self.name, "ip": self.ip, "port": self.port}})
+        self.logger = get_logger(__name__, component="microcontroller", rig=self.rig)
+        self.logger.debug(f"Initialized microcontroller: {self.rig}, IP: {self.ip}, Port: {self.port}", extra={"event": "microcontroller_initialized", "details": {"rig": self.rig, "ip": self.ip, "port": self.port}})
 
     # -------------------------------------------------------------------------
     # Helpers (PRIVATE)

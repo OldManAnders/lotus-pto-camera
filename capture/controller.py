@@ -47,7 +47,7 @@ class CaptureController():
                  ):
 
         # Store identity first so logging can carry rig/run context
-        self.name = rig
+        self.rig = rig
         self.output_path = output_path
         self.config = config
         self.enable_camera = enable_camera
@@ -61,14 +61,14 @@ class CaptureController():
 
         # Establish logger
         self.set_log_level(log_level, log_file=log_file, run_id=self._run_id)
-        self.logger = get_logger(name="main", component="main", rig=self.name)
+        self.logger = get_logger(__name__, component="main", rig=self.rig)
         self.logger.debug(f"Setting log level to '{log_level}'", extra={"event": "logger_initialization", "details": {"level": log_level, "run_id": self._run_id}})
 
         setups = self.get_subconfig("setups")
-        if self.name not in setups:
-            self.logger.error(f"Unknown rig '{self.name}'", extra={"event": "config_loading", "details": {"rig": self.name, "available": list(setups.keys())}})
-            raise ValueError(f"Unknown rig '{self.name}'. Available rigs: {list(setups.keys())}")
-        self.rig = setups[self.name]
+        if self.rig not in setups:
+            self.logger.error(f"Unknown rig '{self.rig}'", extra={"event": "config_loading", "details": {"rig": self.rig, "available": list(setups.keys())}})
+            raise ValueError(f"Unknown rig '{self.rig}'. Available rigs: {list(setups.keys())}")
+        self.rig_config = setups[self.rig]
 
     def _ensure_unifi(self):
         """Lazily create the UniFi PoE controller. Returns None when disabled."""
@@ -79,7 +79,7 @@ class CaptureController():
             host = network_conf["unifi"]["host"]
             self.logger.debug(f"Connecting to UniFi controller at {host}", extra={"event": "unifi_initialization", "details": {"host": host}})
             try:
-                self.unifi = UnifiPoEController(UnifiConfig(**network_conf["unifi"]), rig=self.name)
+                self.unifi = UnifiPoEController(UnifiConfig(**network_conf["unifi"]), rig=self.rig)
             except Exception as e:
                 self.logger.error(f"UniFi initialization failed: {e}", extra={"event": "unifi_initialization_failure", "details": {"error": str(e)}}, exc_info=True)
                 raise
@@ -90,18 +90,18 @@ class CaptureController():
             level=log_level,
             logfile=log_file,
             run_id=run_id or os.environ.get("LOTUS_RUN_ID", ""),
-            rig=getattr(self, "name", ""),
+            rig=getattr(self, "rig", ""),
         )
 
     def start_rig(self):
         # Initialize camera_handler
         try:
             self.power_on_camera()
-            self.camera_handler = CameraHandler(ip=self.rig["camera"]["ip"], rig=self.name, output_folder=self.output_path) if self.enable_camera else None
-            self.microcontroller_handler = MicrocontrollerHandler(ip=self.rig["microcontroller"]["ip"], port=self.rig["microcontroller"]["port"], rig=self.name) if self.enable_microcontroller else None
+            self.camera_handler = CameraHandler(ip=self.rig_config["camera"]["ip"], rig=self.rig, output_folder=self.output_path) if self.enable_camera else None
+            self.microcontroller_handler = MicrocontrollerHandler(ip=self.rig_config["microcontroller"]["ip"], port=self.rig_config["microcontroller"]["port"], rig=self.rig) if self.enable_microcontroller else None
         except Exception as e:
             self.logger.error(f"Failed to start rig: {e}", extra={"event": "exception", "details": {"error": str(e)}}, exc_info=True)
-            raise RuntimeError(f"Failed to start rig '{self.name}': {e}") from e
+            raise RuntimeError(f"Failed to start rig '{self.rig}': {e}") from e
 
     def get_subconfig(self, subconfig):
         subconfig = subconfig.lower()
@@ -131,7 +131,7 @@ class CaptureController():
         # Power on PoE port
         try:
             switch_mac = self.get_subconfig("network")["camera_switch_mac"]
-            port = self.rig['camera']['switch_port']
+            port = self.rig_config['camera']['switch_port']
             self.logger.info(f"Powering ON PoE for camera at switch {switch_mac} port {port}", extra={"event": "poe_control", "details": {"switch": switch_mac, "port": port, "action": "on"}})
             self._ensure_unifi()
             result = self.unifi.set_poe(
@@ -153,7 +153,7 @@ class CaptureController():
             return
         try:
             switch_mac = self.get_subconfig("network")["camera_switch_mac"]
-            port = self.rig['camera']['switch_port']
+            port = self.rig_config['camera']['switch_port']
             self.logger.info(f"Powering OFF PoE for camera at switch {switch_mac} port {port}", extra={"event": "poe_control", "details": {"switch": switch_mac, "port": port, "action": "off"}})
             result = self.unifi.set_poe(
                 switch_mac=switch_mac,
@@ -235,10 +235,10 @@ class CaptureController():
             "schema_version": 1,
             "capture": {
                 "timestamp": timestamp,
-                "rig": self.name,
+                "rig": self.rig,
                 "camera_config": cam_config_name,
                 "lighting_config": light_config_name,
-                "image_file": f"{timestamp}_{self.name}_{cam_config_name}_{light_config_name}.png"
+                "image_file": f"{timestamp}_{self.rig}_{cam_config_name}_{light_config_name}.png"
             },
             "camera": {
                 "settings_actual": camera_meta.get("settings_actual", {})
