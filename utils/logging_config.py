@@ -4,7 +4,7 @@ The root logger receives a single-line ``HumanFormatter`` on stdout and, when a
 log file is supplied, a strict columnar ``CSVFormatter`` appended to that file.
 Each record carries the structured context fields ``run_id``, ``rig``,
 ``component``, ``event``, and ``details``; ``_ContextFilter`` injects defaults
-for any that are missing, and event names are drawn from ``EVENT_NAMES``.
+for any that are missing. The event catalog lives in ``docs/operations.md``.
 """
 
 import csv
@@ -15,21 +15,6 @@ import os
 import sys
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple
-
-EVENT_NAMES = frozenset({
-    "routine_start", "attempt_failed", "routine_done", "all_retries_failed",
-    "unifi_initialization", "unifi_initialization_failure", "unifi_interface", "unifi_hardware",
-    "poe_control", "poe_control_success", "poe_control_failure", "poe_camera_warmup",
-    "wiper", "wiper_failed", "capture", "capture_failed",
-    "lights_set", "lights", "set_leds_error",
-    "image_saved", "image_save_failed", "grab_failed", "capture_error",
-    "camera_reconnected", "reconnect_failed", "camera_settings_updated", "settings_update_error",
-    "metadata_saved", "metadata_save_failed",
-    "config_loading", "config_parsing", "interrupted", "exception", "abort",
-    "ping", "get_request", "http_get_failed", "http_post_failed",
-    "wipe_error", "reset_error", "microcontroller_initialized", "camera_handler_initialized",
-    "logger_initialization", "camera_sleep", "camera_wake", "camera_stopped", "bad_config_type",
-})
 
 _DETAILS_TRUNCATE = 4096
 _HUMAN_DETAILS_TRUNCATE = 300

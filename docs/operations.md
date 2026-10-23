@@ -87,11 +87,17 @@ Controller and orchestration (component is the rig name):
 | `poe_camera_warmup` | DEBUG | Waiting 10 s for the camera to boot. |
 | `exception` | ERROR | `start_rig` failed, with a flattened traceback. |
 | `wiper` | DEBUG | Lens wipe starting. |
+| `wiper_failed` | WARNING | Wiper call failed; capture continues. |
 | `camera_temperature` | DEBUG | Camera temperature reading. |
 | `camera_temperature_failed` | WARNING | Temperature read failed. |
 | `capture` | INFO | Starting a capture step. |
+| `capture_plan` | INFO | Resolved and ordered capture plan, with lighting/camera switch counts. |
 | `lights_set` | INFO | LED values applied, with the board's reply. |
 | `capture_failed` | ERROR | No frame captured, save skipped. |
+| `composite_source_failed` | ERROR | One composite source frame failed; capture continues with the rest. |
+| `composite_failed` | ERROR | No usable sources, mismatched shapes, or the method raised; nothing saved. |
+| `composite_saved` | INFO | Whole-run composite image and sidecar written. |
+| `composite_validation_failed` | ERROR | Composite plan was rejected before hardware start. |
 | `camera_close_failed` | ERROR | Camera close raised during teardown. |
 | `lights` | DEBUG | LEDs turned off after the run. |
 
@@ -99,6 +105,8 @@ Process level (`main.py`):
 
 | Event | Level | Meaning |
 |---|---|---|
+| `routine_start` | INFO | Capture routine started. |
+| `routine_done` | INFO | Capture routine completed. |
 | `config_parsing` | WARNING | No `-c` pairs given, using `default default`. |
 | `interrupted` | WARNING | Stopped with Ctrl-C, exit code 130. |
 | `abort` | ERROR | Uncaught exception, exit code 1. |
@@ -109,10 +117,15 @@ Camera (`capture/camera.py`):
 | Event | Level | Meaning |
 |---|---|---|
 | `camera_handler_initialized` | DEBUG | Handler created. |
+| `camera_first_available` | INFO | No IP supplied; opened the first available camera. |
 | `camera_not_found` | ERROR | Camera could not be opened. |
-| `camera_settings_updated` | DEBUG | Preset applied. |
-| `settings_update_error` | ERROR | Applying a preset failed. |
+| `camera_settings_updated` | DEBUG | Preset applied, with the changed node list and write counts. |
+| `camera_settings_unchanged` | DEBUG | Preset matched the last applied values; no nodes written. |
+| `settings_update_error` | ERROR | Applying a preset failed; the diff cache is cleared. |
 | `image_saved` | DEBUG | Image written to disk. |
+| `image_save_failed` | ERROR | Image could not be written. |
+| `metadata_saved` | DEBUG | Sidecar metadata written. |
+| `metadata_save_failed` | ERROR | Sidecar metadata could not be written. |
 | `grab_failed` | ERROR | Grab returned no frame. |
 | `capture_error` | ERROR | Grab raised, reconnect attempted. |
 | `camera_reconnected` | INFO | Reconnect succeeded. |
