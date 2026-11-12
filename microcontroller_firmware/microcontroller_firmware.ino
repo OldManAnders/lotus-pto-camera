@@ -1,12 +1,11 @@
 #include <SPI.h>
-#include <ETH.h>
+#include <W5500lwIP.h>
 #include <WebServer.h>
-#include <ESP32Servo.h>
+#include <Servo.h>
 #include <ArduinoJson.h>
-#include <esp_task_wdt.h>
 #include "config.h"
 
-bool ethConnected = false;
+Wiznet5500lwIP eth(ETH_CS, SPI, ETH_INT);
 WebServer server(HTTP_PORT);
 
 Servo led1, led2, led3, wiper;
@@ -15,6 +14,17 @@ Servo* leds[3] = {&led1, &led2, &led3};
 unsigned long lastCmd[3] = {0, 0, 0};
 int ledValues[3] = {0, 0, 0};
 bool wiperActive = false;
+
+bool linkUp = false;
+unsigned long lastLinkPoll = 0;
+
+// The W5500 driver hands back a raw uint8_t[6], unlike the ESP32's String.
+String macToString(const uint8_t* mac) {
+  char buf[18];
+  snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X",
+           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  return String(buf);
+}
 
 // Helper functions
 uint16_t brightnessToUs(uint8_t value) {
@@ -46,7 +56,7 @@ void doWiperSweep() {
       wiper.write(pos);
       delay(WIPER_DELAY_MS);
     }
-    esp_task_wdt_reset(); //Reset watchdog at the extrema of every wipe
+    rp2040.wdt_reset(); //Reset watchdog at the extrema of every wipe
   }
 
   wiperActive = false;
@@ -77,10 +87,13 @@ void checkTimeouts() {
 
 // HTTP API handlers
 void handleNetworkStatus() {
+  uint8_t mac[6];
+  eth.macAddress(mac);
+
   String body = "==== Network Status ====\n";
-  body += "IP Address : " + ETH.localIP().toString() + "\n";
-  body += "MAC Address: " + ETH.macAddress() + "\n";
-  body += "Link Speed : " + String(ETH.linkSpeed()) + "\n";
+  body += "IP Address : " + eth.localIP().toString() + "\n";
+  body += "MAC Address: " + macToString(mac) + "\n";
+  body += "Link       : " + String(eth.isLinked() ? "up" : "down") + "\n";
   server.send(200, "text/plain", body);
 }
 
@@ -90,7 +103,8 @@ void handleRoot() {
 
 void handleReboot() {
   server.send(200, "application/json", "{\"status\":\"Rebooting...\"}");
-  ESP.restart();
+  delay(100);
+  rp2040.restart();
 }
 
 void handleStatus() {
@@ -161,45 +175,26 @@ void handleReset() {
   handleStatus();
 }
 
-// Ethernet event handler
-void onEthEvent(arduino_event_id_t event) {
-  switch (event) {
-    case ARDUINO_EVENT_ETH_START:
-      Serial.println("ETH started");
-      ETH.setHostname(ETH_HOSTNAME);
-      if (USE_STATIC_IP) {
-        ETH.config(STATIC_IP, GATEWAY, SUBNET, DNS);
-        Serial.println("Using static IP");
-      }
-      break;
+// The ESP32 build zeroed all outputs from the ETH_DISCONNECTED/STOP events.
+// On the RP2350 there is no event bus, so poll the W5500 PHY instead.
+void pollLink() {
+  unsigned long now = millis();
+  if (now - lastLinkPoll < LINK_POLL_MS) {
+    return;
+  }
+  lastLinkPoll = now;
 
-    case ARDUINO_EVENT_ETH_CONNECTED:
-      Serial.println("ETH connected");
-      break;
+  bool up = eth.isLinked();
+  if (up == linkUp) {
+    return;
+  }
+  linkUp = up;
 
-    case ARDUINO_EVENT_ETH_GOT_IP:
-      Serial.print("ETH got IP: ");
-      Serial.println(ETH.localIP());
-      Serial.print("Speed: ");
-      Serial.print(ETH.linkSpeed());
-      Serial.println(" Mbps");
-      ethConnected = true;
-      break;
-
-    case ARDUINO_EVENT_ETH_DISCONNECTED:
-      Serial.println("ETH disconnected");
-      ethConnected = false;
-      resetAllOutputs();
-      break;
-
-    case ARDUINO_EVENT_ETH_STOP:
-      Serial.println("ETH stopped");
-      ethConnected = false;
-      resetAllOutputs();
-      break;
-
-    default:
-      break;
+  if (up) {
+    Serial.println("ETH connected");
+  } else {
+    Serial.println("ETH disconnected");
+    resetAllOutputs();
   }
 }
 
@@ -210,36 +205,44 @@ void setup() {
   delay(1000);
   Serial.println(String(ETH_HOSTNAME) + " booting");
 
-  // Configure Watchdog
-  esp_task_wdt_config_t wdt_config = {
-    .timeout_ms = WDT_TIMEOUT_SEC * 1000,
-    .idle_core_mask = (1 << 0),
-    .trigger_panic = true
-  };
-  esp_task_wdt_reconfigure(&wdt_config);
-  esp_task_wdt_add(NULL);
+  // Configure Watchdog (hardware WDT: resets the chip if not fed in time)
+  rp2040.wdt_begin(WDT_TIMEOUT_SEC * 1000);
   Serial.printf("Watchdog enabled (%d sec)\n", WDT_TIMEOUT_SEC);
 
   // Initialize LEDs and Servo and set to default state (off/min_wipe_position)
-  led1.attach(LED1_PIN);
-  led2.attach(LED2_PIN);
-  led3.attach(LED3_PIN);
-  wiper.attach(WIPER_PIN);
+  led1.attach(LED1_PIN, SERVO_US_MIN, SERVO_US_MAX);
+  led2.attach(LED2_PIN, SERVO_US_MIN, SERVO_US_MAX);
+  led3.attach(LED3_PIN, SERVO_US_MIN, SERVO_US_MAX);
+  wiper.attach(WIPER_PIN, SERVO_US_MIN, SERVO_US_MAX);
   for (int i = 0; i < 3; i++) {
     leds[i]->writeMicroseconds(brightnessToUs(0));
   }
   wiper.write(WIPER_MIN);
 
-  // Attach ethernet event handler
-  Network.onEvent(onEthEvent);
+  // Initialize W5500 Ethernet (SPI pins must be set before begin())
+  SPI.setRX(ETH_MISO);
+  SPI.setTX(ETH_MOSI);
+  SPI.setSCK(ETH_SCK);
+  SPI.setCS(ETH_CS);
 
-  // Initialize Ethernet
-  SPI.begin(ETH_CLK, ETH_MISO, ETH_MOSI, ETH_CS);
-  ETH.begin(ETH_PHY_DM9051, 1, ETH_CS, ETH_INT, ETH_RST, SPI);
+  eth.setSPISpeed(SPI_HZ);
+  eth.hostname(ETH_HOSTNAME);
+  if (USE_STATIC_IP) {
+    eth.config(STATIC_IP, GATEWAY, SUBNET, DNS);
+    Serial.println("Using static IP");
+  }
 
-  // Print MAC address
+  if (!eth.begin()) {
+    Serial.println("ETH init failed - W5500 did not respond");
+  } else {
+    Serial.print("IP: ");
+    Serial.println(eth.localIP());   // R6: keep the documented serial output truthful
+  }
+
+  uint8_t mac[6];
+  eth.macAddress(mac);
   Serial.print("MAC: ");
-  Serial.println(ETH.macAddress());
+  Serial.println(macToString(mac));
 
   // Connect HTTP routes
   server.on("/", HTTP_GET, handleRoot);
@@ -261,8 +264,9 @@ void setup() {
 
 // Main loop
 void loop() {
-  esp_task_wdt_reset();
+  rp2040.wdt_reset();
   server.handleClient();
   checkTimeouts();
+  pollLink();
   delay(10);
 }

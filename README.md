@@ -3,7 +3,7 @@ Automated image-capture system for the LOTUS-PTO project. Dedicated capture rigs
 
 Each rig is made up of:
 - **Basler ace 2 GigE camera** — powered over PoE, controlled via pypylon. Camera features/settings reference: [`docs/basler_camera_nodes.md`](docs/basler_camera_nodes.md).
-- **ESP32-C3 microcontroller** — drives three LED channels and a lens wiper over HTTP. Firmware lives in [`microcontroller_firmware/`](microcontroller_firmware/); full HTTP API: [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md).
+- **RP2350 microcontroller (W5500 Ethernet)** — drives three LED channels and a lens wiper over HTTP. Firmware lives in [`microcontroller_firmware/`](microcontroller_firmware/); full HTTP API: [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md).
 
 All rigs are controlled from a centralized setup which is made up of:
 - **UniFi switch** — powers cameras/microcontrollers and cycles PoE ports on/off.
@@ -20,7 +20,7 @@ For Setup and installation see the Getting Started guide and Configuration guide
 | `gui_capture.py` | Tkinter GUI wrapper around `CaptureController` |
 | `capture/` | `CaptureController`, `CameraHandler` (pypylon) and `MicrocontrollerHandler` (HTTP) |
 | `config.yaml` | Central config: rigs, camera/light presets, network |
-| `microcontroller_firmware/` | ESP32-C3 firmware |
+| `microcontroller_firmware/` | RP2350 (W5500) firmware |
 | `utils/` | Logging, UniFi PoE control, image filename parsing |
 | `network/` | Ethernet / network setup scripts |
 | `systemd/` | Service, timer, and install script for scheduled capture |
@@ -67,7 +67,7 @@ Example: `20260601-143022_rig1_default_demoAll.png`
 The GUI writes each run into a session subdirectory, `<output_path>/<session>/images/YYYY-MM-DD/`, which keeps manual captures separate from the scheduled automatic captures (which write straight into the automatic output root). Pointing the GUI's Output Folder at that automatic root is a deliberate choice to intermingle them.
 
 ## Additional Documentation
-- [`docs/firmware.md`](docs/firmware.md): ESP32-C3 build, flash, and per-rig `config.h`.
+- [`docs/firmware.md`](docs/firmware.md): RP2350 (W5500) build, flash, and per-rig `config.h`.
 - [`docs/operations.md`](docs/operations.md): systemd schedule, logs, and troubleshooting.
 - [`docs/basler_camera_nodes.md`](docs/basler_camera_nodes.md): camera features reference doc.
 - [`docs/microcontroller_communication.md`](docs/microcontroller_communication.md): microcontroller HTTP API.

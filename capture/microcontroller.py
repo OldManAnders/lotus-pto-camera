@@ -1,4 +1,4 @@
-"""ESP32-C3 HTTP control adapter for the LOTUS-PTO rig.
+"""RP2350 rig controller HTTP adapter for the LOTUS-PTO rig.
 
 The microcontroller drives the three rig LEDs and the lens wiper, and reports
 device status over a small HTTP API on the rig network. Every request method is
@@ -11,7 +11,7 @@ from utils.logging_config import get_logger
 
 
 class MicrocontrollerHandler:
-    """HTTP control adapter for the ESP32-C3 rig microcontroller.
+    """HTTP control adapter for the rig microcontroller (RP2350 + W5500).
 
     Drives the rig LEDs and lens wiper, and reports device status over a small
     HTTP API. Request methods return ``None`` on transport failure instead of

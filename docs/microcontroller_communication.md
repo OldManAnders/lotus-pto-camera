@@ -1,6 +1,6 @@
 # Microcontroller Communication Overview
-The ESP32-C3 board (Ethernet, DM9051 PHY) hosts an HTTP server on port 80. 
-This file documents the routes the firmware implements — see `microcontroller_firmware/esp32c3wts320ethevo.ino` and `microcontroller_firmware/config.h`. 
+The RP2350-MINI(ETH) board (W5500 Ethernet) hosts an HTTP server on port 80. 
+This file documents the routes the firmware implements — see `microcontroller_firmware/microcontroller_firmware.ino` and `microcontroller_firmware/config.h`. 
 
 ## Firmware behavior
 - Transport is HTTP over Ethernet only (no WiFi). The board uses a static IP from `config.h` (default `192.168.1.101`, hostname `rig1_microcontroller`).
@@ -17,7 +17,7 @@ This file documents the routes the firmware implements — see `microcontroller_
 | GET    | `/`       | Root: hostname + route listing               | `text/plain`                      |
 | GET    | `/ping`   | Heartbeat check                              | `{"type":"pong"}`                 |
 | GET    | `/status` | Current LED values + wiper state             | `{"led1":0,"led2":0,"led3":0,"wiperActive":false}` |
-| GET    | `/network`| Ethernet status                              | `text/plain` (IP, MAC, link speed)|
+| GET    | `/network`| Ethernet status                              | `text/plain` (IP, MAC, link state)|
 | POST   | `/leds`   | Set one or more LEDs (0–255)                 | status JSON                       |
 | POST   | `/wiper`  | Trigger wiper sweep (blocks until done)      | `{"wiper":"done"}`                |
 | POST   | `/reset`  | Zero all LEDs, wiper to minimum position     | status JSON                       |
@@ -65,7 +65,7 @@ curl http://192.168.1.101/ping
 # Current LED + wiper state
 curl http://192.168.1.101/status
 
-# Network info (IP, MAC, link speed)
+# Network info (IP, MAC, link state)
 curl http://192.168.1.101/network
 
 # Turn LED 1 on full

@@ -27,7 +27,7 @@ sequenceDiagram
     participant CH as CameraHandler
     participant BC as Basler camera (pypylon)
     participant MH as MicrocontrollerHandler
-    participant ESP as ESP32-C3 (HTTP port 80)
+    participant MCU as RP2350 (W5500, HTTP port 80)
     participant FS as Filesystem (images/)
     participant LOG as logging_config (CSV)
 
@@ -53,15 +53,15 @@ sequenceDiagram
 
     E->>CC: prepare_for_capture()
     CC->>MH: wipe()
-    MH->>ESP: POST /wiper (timeout 30s)
-    ESP-->>MH: 200 OK
+    MH->>MCU: POST /wiper (timeout 30s)
+    MCU-->>MH: 200 OK
     CC->>CH: read_temperature()
     CC->>LOG: debug("camera_temperature", ...)
 
     loop each (camera_config, light_config) pair
         CC->>MH: set_leds(**light_config)
-        MH->>ESP: POST /leds {led1,led2,led3}
-        ESP-->>MH: applied (servo PWM)
+        MH->>MCU: POST /leds {led1,led2,led3}
+        MCU-->>MH: applied (servo PWM)
         CC->>CH: load_config(camera_config)
         CH->>BC: set GenICam nodes (Width, ExposureTime, AutoFunction, ...)
         Note over CC,CH: flush buffer 3x(set_leds + 5x capture_image)
@@ -77,7 +77,7 @@ sequenceDiagram
 
     CC->>CH: close()
     CC->>MH: set_leds(0, 0, 0)
-    MH->>ESP: POST /leds {0,0,0}
+    MH->>MCU: POST /leds {0,0,0}
     Note over E,CC: finally block runs unconditionally
     E->>CC: power_off_camera()
     CC->>UH: set_poe(..., enabled=False)

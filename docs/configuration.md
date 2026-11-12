@@ -120,7 +120,9 @@ setups:
 - `camera.settings` and `light.settings` hold the rig's default blocks.
 - `microcontroller.ip` and `microcontroller.port` are the board's HTTP address,
   and must match `STATIC_IP` and `HTTP_PORT` in the firmware `config.h`.
-- `microcontroller.switch_port` is the PoE port for the board.
+- `microcontroller.switch_port` is the PoE port the board is cabled to. It is
+  currently unused: the capture code only ever cycles `camera.switch_port`, and
+  the RP2350 board is powered from 5 V (USB-C / 5 V pads), not over PoE.
 
 The checked-in file defines `rig1`, `rig2`, and `rig3` (cameras `.11` to `.13`,
 microcontrollers `.101` to `.103`, switch ports 1 to 6) plus an `any` entry with
@@ -143,10 +145,13 @@ network:
 ```
 
 `camera_switch_mac` and `microcontroller_switch_mac` are the MAC addresses of
-the PoE switches. In the checked-in file both point at the same switch. The
-`unifi` block is passed straight to the controller client. `verify_ssl` is false
-for the self-signed certificate on a local controller. These credentials also
-appear in `network/probe_unifi.sh`, which you can use to confirm they work.
+the PoE switches. In the checked-in file both point at the same switch. Only
+`camera_switch_mac` is used by the capture code; `microcontroller_switch_mac` is
+currently unused, since the RP2350 board is 5 V-powered (USB-C / 5 V pads) and
+not PoE-powered. The `unifi` block is passed straight to the controller client.
+`verify_ssl` is false for the self-signed certificate on a local controller.
+These credentials also appear in `network/probe_unifi.sh`, which you can use to
+confirm they work.
 
 ## Filename rules
 
