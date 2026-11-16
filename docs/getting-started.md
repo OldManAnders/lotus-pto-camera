@@ -8,7 +8,7 @@ RP2350 board, see [firmware](firmware.md). For the config file in full, see
 
 A capture machine is a Linux host on the private `192.168.1.0/24` network with:
 
-- A Basler ace 2 GigE camera, powered over PoE. (We use Synology switch to powercycle, reducing heat-generation)
+- A Basler ace 2 GigE camera, powered over PoE. (We use a UniFi PoE switch to power-cycle it, reducing heat generation)
 - An RP2350-MINI(ETH) microcontroller (RP2350A + W5500) running the
   [firmware](firmware.md), one per rig. It is powered from 5 V (USB-C or the
   5 V pads), not over PoE, so it needs its own supply even though it stays
